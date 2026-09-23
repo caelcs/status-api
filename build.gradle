@@ -39,8 +39,18 @@ dependencies {
     // Lombok (JDK 25 compatible; version aligned with the Spring Boot 4.0.8 BOM)
     def lombokVersion = '1.18.46'
     compileOnly "org.projectlombok:lombok:$lombokVersion"
-    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
     testCompileOnly "org.projectlombok:lombok:$lombokVersion"
+
+    // MapStruct (latest 1.6.x line, JDK 25 compatible) for the boundary mappers
+    def mapstructVersion = '1.6.3'
+    implementation "org.mapstruct:mapstruct:$mapstructVersion"
+
+    // Annotation processors — order matters: MapStruct first, then Lombok, then the
+    // Lombok-MapStruct binding so Lombok-generated accessors are visible to MapStruct.
+    annotationProcessor "org.mapstruct:mapstruct-processor:$mapstructVersion"
+    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
+    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
+    testAnnotationProcessor "org.mapstruct:mapstruct-processor:$mapstructVersion"
     testAnnotationProcessor "org.projectlombok:lombok:$lombokVersion"
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

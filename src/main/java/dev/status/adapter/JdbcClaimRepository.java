@@ -4,6 +4,7 @@ import dev.status.domain.ClaimedService;
 import dev.status.domain.Status;
 import dev.status.domain.WriteBack;
 import dev.status.port.ClaimRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class JdbcClaimRepository implements ClaimRepository {
 
     private static final String CLAIM_SQL = """
@@ -62,10 +64,6 @@ public class JdbcClaimRepository implements ClaimRepository {
             """;
 
     private final JdbcTemplate jdbc;
-
-    public JdbcClaimRepository(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     @Override
     @Transactional

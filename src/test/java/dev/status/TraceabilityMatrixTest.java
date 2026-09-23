@@ -8,9 +8,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * AC15: the §2.6 traceability matrix. Every FR1-FR11 / AC1-AC15 row must have
- * at least one named test reference, and each reference must resolve to a real
- * test method — otherwise the build fails.
+ * AC15: the §2.6 traceability matrix. Every FR1-FR11 / AC1-AC15 row (plus the
+ * S50 OpenAPI-docs verification row) must have at least one named test
+ * reference, and each reference must resolve to a real test method — otherwise
+ * the build fails.
  */
 class TraceabilityMatrixTest {
 
@@ -73,12 +74,13 @@ class TraceabilityMatrixTest {
                     "dev.status.ContractGoldenTest.given_missingKey_when_post_then_401ExactEnvelope",
                     "dev.status.ContractGoldenTest.given_devKey_when_postProd_then_403ExactEnvelope")),
             new Row("AC14", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates")),
-            new Row("AC15", List.of("dev.status.TraceabilityMatrixTest.given_matrix_when_everyRowNamed_then_allRefsResolve"))
+            new Row("AC15", List.of("dev.status.TraceabilityMatrixTest.given_matrix_when_everyRowNamed_then_allRefsResolve")),
+            new Row("S50", List.of("dev.status.OpenApiDocsApiTest.given_appBooted_when_fetchApiDocs_then_documentedOperationsAndResponsesPresent"))
     );
 
     @Test
     void given_matrix_when_everyRowNamed_then_allRefsResolve() throws Exception {
-        assertThat(MATRIX).hasSize(26); // FR1-11 + AC1-15
+        assertThat(MATRIX).hasSize(27); // FR1-11 + AC1-15 + S50
         for (Row row : MATRIX) {
             assertThat(row.references())
                     .as("row %s must have at least one named test reference", row.requirement())
