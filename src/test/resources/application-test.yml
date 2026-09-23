@@ -1,0 +1,5 @@
+app:
+  seed-api-keys: "dev-key:dev:dev-client,prod-key:prod:prod-client"
+
+monitoring:
+  enabled: false

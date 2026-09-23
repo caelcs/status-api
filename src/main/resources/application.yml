@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: status-api
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/status}
+    username: ${SPRING_DATASOURCE_USERNAME:status}
+    password: ${SPRING_DATASOURCE_PASSWORD:status}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui/index.html
+    enabled: true
+
+monitoring:
+  check-interval: 15s
+  timeout: 2s
+  lease-ttl: 30s
+  claim-cap: 50
+  max-in-flight: 10
+  backoff-ms: [15000, 30000, 60000]
+  jitter: 0.2
+  claim-tick: 5s
+  claim-tick-ms: 5000
+  heartbeat-interval: 10s
+  heartbeat-ttl: 30s
+
+logging:
+  level:
+    root: INFO
+    dev.status: INFO
+    org.springframework: WARN
+    org.hibernate: WARN

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Service Status Dashboard</title>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --text: #e2e8f0; --muted: #94a3b8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: var(--bg); color: var(--text); }
+    header { padding: 1.5rem 2rem; border-bottom: 1px solid #334155; display: flex;
+             align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    h1 { margin: 0; font-size: 1.4rem; }
+    .counters { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .counter { background: var(--card); padding: .5rem 1rem; border-radius: .5rem; font-size: .9rem; }
+    .counter b { font-size: 1.2rem; margin-left: .35rem; }
+    .counter.up b { color: #22c55e; } .counter.degraded b { color: #eab308; }
+    .counter.down b { color: #ef4444; } .counter.unknown b { color: #94a3b8; }
+    main { padding: 2rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+    .card { background: var(--card); border-radius: .75rem; padding: 1rem; border-left: 4px solid #64748b; }
+    .card.up { border-left-color: #22c55e; } .card.degraded { border-left-color: #eab308; }
+    .card.down { border-left-color: #ef4444; } .card.unknown { border-left-color: #94a3b8; }
+    .card h2 { margin: 0 0 .25rem; font-size: 1.05rem; }
+    .card .key { color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }
+    .card .status { display: inline-block; padding: .15rem .5rem; border-radius: .25rem;
+                    font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+    .status.up { background: #14532d; color: #4ade80; } .status.degraded { background: #713f12; color: #facc15; }
+    .status.down { background: #7f1d1d; color: #f87171; } .status.unknown { background: #334155; color: #94a3b8; }
+    .card .meta { color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+    .env-control { display: flex; align-items: center; gap: .5rem; }
+    .env-control select { background: var(--card); color: var(--text); border: 1px solid #334155;
+                          border-radius: .5rem; padding: .4rem .6rem; }
+    #conn { font-size: .75rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Service Status</h1>
+    <div class="env-control">
+      <label for="env">Environment</label>
+      <select id="env">
+        <option value="dev">dev</option>
+        <option value="prod">prod</option>
+      </select>
+      <span id="conn">connecting…</span>
+    </div>
+    <div class="counters">
+      <div class="counter">Total<b id="c-total">0</b></div>
+      <div class="counter up">Up<b id="c-up">0</b></div>
+      <div class="counter degraded">Degraded<b id="c-degraded">0</b></div>
+      <div class="counter down">Down<b id="c-down">0</b></div>
+      <div class="counter unknown">Unknown<b id="c-unknown">0</b></div>
+    </div>
+  </header>
+  <main id="grid"></main>
+
+  <script src="app.js"></script>
+</body>
+</html>

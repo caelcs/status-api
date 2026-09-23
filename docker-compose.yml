@@ -1,0 +1,123 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: status
+      POSTGRES_USER: status
+      POSTGRES_PASSWORD: status
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U status"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  status-api-1:
+    build: .
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/status
+      SPRING_DATASOURCE_USERNAME: status
+      SPRING_DATASOURCE_PASSWORD: status
+      APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
+      MONITORING_CLAIM_TICK_MS: "2000"
+      MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_LEASE_TTL: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+
+  status-api-2:
+    build: .
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/status
+      SPRING_DATASOURCE_USERNAME: status
+      SPRING_DATASOURCE_PASSWORD: status
+      APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
+      MONITORING_CLAIM_TICK_MS: "2000"
+      MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_LEASE_TTL: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+
+  status-api-3:
+    build: .
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/status
+      SPRING_DATASOURCE_USERNAME: status
+      SPRING_DATASOURCE_PASSWORD: status
+      APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
+      MONITORING_CLAIM_TICK_MS: "2000"
+      MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_LEASE_TTL: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+
+  mock-auth:
+    build: ./mock-services
+    environment:
+      MOCK_NAME: mock-auth
+      MOCK_ENV: dev
+      MOCK_PORT: "8080"
+      MOCK_SELF_HOST: mock-auth
+      MOCK_API_KEY: mock-auth-key
+      STATUS_API_URL: http://status-api-1:8080
+    depends_on:
+      - status-api-1
+
+  mock-payments:
+    build: ./mock-services
+    environment:
+      MOCK_NAME: mock-payments
+      MOCK_ENV: dev
+      MOCK_PORT: "8080"
+      MOCK_SELF_HOST: mock-payments
+      MOCK_API_KEY: mock-payments-key
+      STATUS_API_URL: http://status-api-1:8080
+    depends_on:
+      - status-api-1
+
+  mock-notifications:
+    build: ./mock-services
+    environment:
+      MOCK_NAME: mock-notifications
+      MOCK_ENV: dev
+      MOCK_PORT: "8080"
+      MOCK_SELF_HOST: mock-notifications
+      MOCK_API_KEY: mock-notifications-key
+      STATUS_API_URL: http://status-api-1:8080
+    depends_on:
+      - status-api-1
+
+  mock-search:
+    build: ./mock-services
+    environment:
+      MOCK_NAME: mock-search
+      MOCK_ENV: dev
+      MOCK_PORT: "8080"
+      MOCK_SELF_HOST: mock-search
+      MOCK_API_KEY: mock-search-key
+      STATUS_API_URL: http://status-api-1:8080
+    depends_on:
+      - status-api-1
+
+  mock-ai:
+    build: ./mock-services
+    environment:
+      MOCK_NAME: mock-ai
+      MOCK_ENV: dev
+      MOCK_PORT: "8080"
+      MOCK_SELF_HOST: mock-ai
+      MOCK_API_KEY: mock-ai-key
+      STATUS_API_URL: http://status-api-1:8080
+    depends_on:
+      - status-api-1

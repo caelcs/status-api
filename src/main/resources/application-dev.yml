@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/status}
+    username: ${SPRING_DATASOURCE_USERNAME:status}
+    password: ${SPRING_DATASOURCE_PASSWORD:status}
+
+logging:
+  level:
+    root: INFO
+    dev.status: DEBUG
