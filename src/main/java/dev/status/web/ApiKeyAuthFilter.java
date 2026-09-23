@@ -2,6 +2,7 @@ package dev.status.web;
 
 import dev.status.domain.ApiKeyEntity;
 import dev.status.port.ApiKeyRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -22,16 +23,13 @@ import java.util.Optional;
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@RequiredArgsConstructor
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     public static final String AUTH_ENV_ATTR = "statusApi.authEnv";
     public static final String AUTH_KEY_NAME_ATTR = "statusApi.authKeyName";
 
     private final ApiKeyRepository apiKeyRepository;
-
-    public ApiKeyAuthFilter(ApiKeyRepository apiKeyRepository) {
-        this.apiKeyRepository = apiKeyRepository;
-    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

@@ -4,6 +4,7 @@ import dev.status.domain.ProbeResult;
 import dev.status.port.HealthProbeClient;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -65,7 +66,7 @@ public class HttpHealthProbeClient implements HealthProbeClient {
         if (e instanceof ConnectException) {
             return "connect timeout";
         }
-        if (e instanceof java.io.IOException) {
+        if (e instanceof IOException) {
             return "connection error";
         }
         return e.getClass().getSimpleName();

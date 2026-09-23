@@ -1,8 +1,7 @@
 package dev.status.application;
 
 import dev.status.dto.StatusEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -15,9 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * transitions to the clients of the matching env.
  */
 @Component
+@Slf4j
 public class SseBroker {
-
-    private static final Logger log = LoggerFactory.getLogger(SseBroker.class);
 
     private final Map<String, Set<SseEmitter>> emittersByEnv = new ConcurrentHashMap<>();
 

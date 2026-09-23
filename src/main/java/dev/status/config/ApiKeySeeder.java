@@ -1,7 +1,7 @@
 package dev.status.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
@@ -14,19 +14,15 @@ import org.springframework.stereotype.Component;
  * Idempotent + race-safe via INSERT ... ON CONFLICT DO NOTHING.
  */
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class ApiKeySeeder implements ApplicationRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(ApiKeySeeder.class);
     private static final String UPSERT_SQL =
             "INSERT INTO api_keys (id, key, name, env) VALUES (gen_random_uuid(), ?, ?, ?) ON CONFLICT (env, key) DO NOTHING";
 
     private final JdbcTemplate jdbc;
     private final Environment environment;
-
-    public ApiKeySeeder(JdbcTemplate jdbc, Environment environment) {
-        this.jdbc = jdbc;
-        this.environment = environment;
-    }
 
     @Override
     public void run(ApplicationArguments args) {

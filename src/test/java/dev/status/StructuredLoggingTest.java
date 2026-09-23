@@ -5,7 +5,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.jayway.jsonpath.JsonPath;
-import dev.status.application.ClaimLoop;
+import dev.status.application.ServiceProbeWorker;
 import dev.status.test.FakeService;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -22,12 +22,12 @@ class StructuredLoggingTest extends MonitoringApiTest {
 
     @Test
     void given_transition_when_logged_then_transitionsLogged_and_upStaysUpSilent() throws Exception {
-        Logger claimLoopLogger = (Logger) LoggerFactory.getLogger(ClaimLoop.class);
+        Logger probeWorkerLogger = (Logger) LoggerFactory.getLogger(ServiceProbeWorker.class);
         LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.setContext(ctx);
         appender.start();
-        claimLoopLogger.addAppender(appender);
+        probeWorkerLogger.addAppender(appender);
         try (FakeService fake = new FakeService("up")) {
             String id = register(fake.healthUrl());
             awaitStatus(id, "up", 15);       // unknown -> up (logged)
@@ -46,7 +46,7 @@ class StructuredLoggingTest extends MonitoringApiTest {
             assertThat(messages)
                     .noneMatch(m -> m.contains("up -> up"));
         } finally {
-            claimLoopLogger.detachAppender(appender);
+            probeWorkerLogger.detachAppender(appender);
         }
     }
 

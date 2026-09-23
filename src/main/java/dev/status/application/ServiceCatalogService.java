@@ -3,13 +3,14 @@ package dev.status.application;
 import dev.status.domain.ServiceEntity;
 import dev.status.domain.Status;
 import dev.status.domain.StatusHistoryEntity;
+import dev.status.dto.ServiceHistory;
 import dev.status.dto.ServiceList;
 import dev.status.dto.ServiceRegistration;
 import dev.status.dto.ServiceStatus;
-import dev.status.dto.StatusHistoryResponse;
 import dev.status.port.ServiceRepository;
 import dev.status.port.StatusHistoryRepository;
 import dev.status.web.ApiException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,30 +21,18 @@ import java.util.UUID;
 
 /**
  * Registration / read / update / delete + history use cases. Enforces env
- * scoping (body env must match the API key's bound env, else 403).
+ * scoping (body env must match the API key's bound env, else 403). Query
+ * parameters are validated at the controller boundary (bean validation).
  */
 @Service
-public class ServiceService {
-
-    private static final int DEFAULT_LIMIT = 50;
-    private static final int MAX_LIMIT = 200;
+@RequiredArgsConstructor
+public class ServiceCatalogService {
 
     private final ServiceRepository serviceRepository;
     private final StatusHistoryRepository historyRepository;
 
-    public ServiceService(ServiceRepository serviceRepository, StatusHistoryRepository historyRepository) {
-        this.serviceRepository = serviceRepository;
-        this.historyRepository = historyRepository;
-    }
-
     @Transactional(readOnly = true)
     public ServiceList list(String env, String statusFilter, String q, String tag, int limit, int offset) {
-        if (statusFilter != null && !Status.isValid(statusFilter)) {
-            throw ApiException.badRequest("Invalid status filter: " + statusFilter);
-        }
-        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? DEFAULT_LIMIT : limit, MAX_LIMIT));
-        int effectiveOffset = Math.max(0, offset);
-
         Status statusEnum = statusFilter == null ? null : Status.fromValue(statusFilter);
         List<ServiceEntity> filtered = serviceRepository.findByEnv(env).stream()
                 .filter(s -> statusEnum == null || s.getStatus() == statusEnum)
@@ -54,11 +43,11 @@ public class ServiceService {
 
         ServiceList.Summary summary = summarize(filtered);
         List<ServiceStatus> items = filtered.stream()
-                .skip(effectiveOffset)
-                .limit(effectiveLimit)
+                .skip(offset)
+                .limit(limit)
                 .map(ServiceStatus::from)
                 .toList();
-        return new ServiceList(items, summary, effectiveLimit, effectiveOffset);
+        return new ServiceList(items, summary, limit, offset);
     }
 
     @Transactional(readOnly = true)
@@ -69,23 +58,22 @@ public class ServiceService {
     }
 
     @Transactional(readOnly = true)
-    public StatusHistoryResponse history(UUID id, Instant since, Instant until, int limit) {
+    public ServiceHistory history(UUID id, Instant since, Instant until, int limit) {
         serviceRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Service " + id + " does not exist"));
-        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? DEFAULT_LIMIT : limit, MAX_LIMIT));
-        List<StatusHistoryResponse.StatusHistoryItem> items = historyRepository
+        List<ServiceHistory.StatusHistoryItem> items = historyRepository
                 .findByServiceId(id).stream()
                 .filter(h -> since == null || !h.getChangedAt().isBefore(since))
                 .filter(h -> until == null || !h.getChangedAt().isAfter(until))
-                .limit(effectiveLimit)
-                .map(h -> new StatusHistoryResponse.StatusHistoryItem(
+                .limit(limit)
+                .map(h -> new ServiceHistory.StatusHistoryItem(
                         h.getServiceId(),
                         h.getFromStatus() == null ? null : h.getFromStatus().value(),
                         h.getToStatus().value(),
                         h.getChangedAt(),
                         h.getReason()))
                 .toList();
-        return new StatusHistoryResponse(items, since, until);
+        return new ServiceHistory(items, since, until);
     }
 
     @Transactional
@@ -148,7 +136,10 @@ public class ServiceService {
     }
 
     private ServiceList.Summary summarize(List<ServiceEntity> services) {
-        int up = 0, degraded = 0, down = 0, unknown = 0;
+        int up = 0;
+        int degraded = 0;
+        int down = 0;
+        int unknown = 0;
         for (ServiceEntity s : services) {
             switch (s.getStatus()) {
                 case UP -> up++;

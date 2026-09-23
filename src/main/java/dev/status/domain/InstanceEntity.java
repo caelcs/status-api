@@ -4,11 +4,18 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "instance")
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class InstanceEntity {
 
     @Id
@@ -21,30 +28,11 @@ public class InstanceEntity {
     @Column(name = "started_at", nullable = false)
     private Instant startedAt;
 
-    protected InstanceEntity() {
-    }
-
     public static InstanceEntity start(String id, Instant startedAt) {
         InstanceEntity e = new InstanceEntity();
         e.id = id;
         e.startedAt = startedAt;
         e.lastHeartbeat = startedAt;
         return e;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public Instant getLastHeartbeat() {
-        return lastHeartbeat;
-    }
-
-    public void setLastHeartbeat(Instant lastHeartbeat) {
-        this.lastHeartbeat = lastHeartbeat;
-    }
-
-    public Instant getStartedAt() {
-        return startedAt;
     }
 }

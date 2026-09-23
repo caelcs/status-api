@@ -7,12 +7,17 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "api_keys")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ApiKeyEntity {
 
     @Id
@@ -34,9 +39,6 @@ public class ApiKeyEntity {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
-    protected ApiKeyEntity() {
-    }
-
     public static ApiKeyEntity create(String key, String name, String env) {
         ApiKeyEntity e = new ApiKeyEntity();
         e.key = key;
@@ -50,30 +52,6 @@ public class ApiKeyEntity {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getEnv() {
-        return env;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getRevokedAt() {
-        return revokedAt;
     }
 
     public boolean isRevoked() {

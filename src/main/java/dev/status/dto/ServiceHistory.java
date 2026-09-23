@@ -5,9 +5,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Transition history for a service (api-contract §3.5).
+ * Transition history for a service — the application-service result type
+ * (mapped to the wire by {@code dev.status.web.ServiceResponseMapper}).
+ * Wire shape is api-contract §3.5.
  */
-public record StatusHistoryResponse(
+public record ServiceHistory(
         List<StatusHistoryItem> items,
         Instant since,
         Instant until

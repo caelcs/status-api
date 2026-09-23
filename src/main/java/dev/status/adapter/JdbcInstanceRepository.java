@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 @Repository
 public class JdbcInstanceRepository implements InstanceRepository {
@@ -25,11 +26,11 @@ public class JdbcInstanceRepository implements InstanceRepository {
 
     @Override
     public void heartbeat(String instanceId, Instant startedAt) {
-        jdbc.update(UPSERT_SQL, instanceId, startedAt.atOffset(java.time.ZoneOffset.UTC));
+        jdbc.update(UPSERT_SQL, instanceId, startedAt.atOffset(ZoneOffset.UTC));
     }
 
     @Override
     public int deleteStale(Instant staleBefore) {
-        return jdbc.update(DELETE_STALE_SQL, staleBefore.atOffset(java.time.ZoneOffset.UTC));
+        return jdbc.update(DELETE_STALE_SQL, staleBefore.atOffset(ZoneOffset.UTC));
     }
 }

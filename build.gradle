@@ -36,6 +36,13 @@ dependencies {
 
     implementation 'net.logstash.logback:logstash-logback-encoder:8.1'
 
+    // Lombok (JDK 25 compatible; version aligned with the Spring Boot 4.0.8 BOM)
+    def lombokVersion = '1.18.46'
+    compileOnly "org.projectlombok:lombok:$lombokVersion"
+    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
+    testCompileOnly "org.projectlombok:lombok:$lombokVersion"
+    testAnnotationProcessor "org.projectlombok:lombok:$lombokVersion"
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.testcontainers:testcontainers'

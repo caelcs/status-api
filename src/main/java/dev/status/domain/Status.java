@@ -31,17 +31,4 @@ public enum Status {
         }
         return UNKNOWN;
     }
-
-    /** Strict check for query-param validation (invalid value -> 400). */
-    public static boolean isValid(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return false;
-        }
-        for (Status s : values()) {
-            if (s.value.equalsIgnoreCase(raw) || s.name().equalsIgnoreCase(raw)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

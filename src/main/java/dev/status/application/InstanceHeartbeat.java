@@ -1,6 +1,7 @@
 package dev.status.application;
 
 import dev.status.port.InstanceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -13,20 +14,14 @@ import java.time.Instant;
  */
 @Component
 @ConditionalOnProperty(name = "monitoring.enabled", havingValue = "true", matchIfMissing = true)
+@RequiredArgsConstructor
 public class InstanceHeartbeat {
 
     private final InstanceRepository instanceRepository;
-    private final String instanceId;
-    private final Instant startedAt;
-
-    public InstanceHeartbeat(InstanceRepository instanceRepository, InstanceIdentity identity) {
-        this.instanceRepository = instanceRepository;
-        this.instanceId = identity.id();
-        this.startedAt = Instant.now();
-    }
+    private final InstanceIdentity identity;
 
     @Scheduled(fixedDelayString = "${monitoring.heartbeat-interval-ms:10000}")
     public void heartbeat() {
-        instanceRepository.heartbeat(instanceId, startedAt);
+        instanceRepository.heartbeat(identity.id(), Instant.now());
     }
 }

@@ -2,16 +2,16 @@ package dev.status.adapter;
 
 import dev.status.application.SseBroker;
 import dev.status.dto.StatusEvent;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 import javax.sql.DataSource;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
 
@@ -20,9 +20,10 @@ import java.sql.Statement;
  * to this instance's own SSE clients (cross-instance re-broadcast).
  */
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class PostgresNotifySubscriber implements DisposableBean {
 
-    private static final Logger log = LoggerFactory.getLogger(PostgresNotifySubscriber.class);
     private static final long RECONNECT_DELAY_MS = 1000;
 
     private final DataSource dataSource;
@@ -32,10 +33,8 @@ public class PostgresNotifySubscriber implements DisposableBean {
     private volatile boolean running = true;
     private Thread listenerThread;
 
-    public PostgresNotifySubscriber(DataSource dataSource, SseBroker sseBroker, JsonMapper jsonMapper) {
-        this.dataSource = dataSource;
-        this.sseBroker = sseBroker;
-        this.jsonMapper = jsonMapper;
+    @PostConstruct
+    void start() {
         this.listenerThread = Thread.ofVirtual().name("pg-notify-listener").start(this::listenLoop);
     }
 

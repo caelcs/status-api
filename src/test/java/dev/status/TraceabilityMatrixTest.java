@@ -66,7 +66,9 @@ class TraceabilityMatrixTest {
                     "dev.status.MockServiceFaultInjectionTest.given_mockService_when_faultToggledDown_then_cellRed_and_countersUpdate",
                     "dev.status.DashboardReconcileTest.given_transition_when_refetch_then_reconciled")),
             new Row("AC11", List.of("dev.status.MetricsObservabilityTest.given_checksRun_when_prometheus_then_metricsExposed")),
-            new Row("AC12", List.of("dev.status.ComposeSmokeTest.given_composeFile_when_inspected_then_fullTopologyPresent")),
+            new Row("AC12", List.of(
+                    "dev.status.ComposeSmokeTest.given_composeFile_when_inspected_then_fullTopologyPresent",
+                    "dev.status.EndToEndApiTest.given_registeredService_when_probedAndFaultInjected_then_transitionObservedOnSse_and_statePersisted")),
             new Row("AC13", List.of(
                     "dev.status.ContractGoldenTest.given_missingKey_when_post_then_401ExactEnvelope",
                     "dev.status.ContractGoldenTest.given_devKey_when_postProd_then_403ExactEnvelope")),

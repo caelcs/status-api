@@ -8,12 +8,17 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "status_history")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StatusHistoryEntity {
 
     @Id
@@ -37,9 +42,6 @@ public class StatusHistoryEntity {
     @Column(name = "reason", length = 255)
     private String reason;
 
-    protected StatusHistoryEntity() {
-    }
-
     public static StatusHistoryEntity transition(UUID serviceId, Status from, Status to, String reason) {
         StatusHistoryEntity h = new StatusHistoryEntity();
         h.serviceId = serviceId;
@@ -54,29 +56,5 @@ public class StatusHistoryEntity {
         if (changedAt == null) {
             changedAt = Instant.now();
         }
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public UUID getServiceId() {
-        return serviceId;
-    }
-
-    public Status getFromStatus() {
-        return fromStatus;
-    }
-
-    public Status getToStatus() {
-        return toStatus;
-    }
-
-    public Instant getChangedAt() {
-        return changedAt;
-    }
-
-    public String getReason() {
-        return reason;
     }
 }

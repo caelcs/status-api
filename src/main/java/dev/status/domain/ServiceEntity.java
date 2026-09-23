@@ -9,6 +9,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -19,6 +23,9 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "services")
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ServiceEntity {
 
     @Id
@@ -72,9 +79,6 @@ public class ServiceEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected ServiceEntity() {
-    }
-
     public static ServiceEntity create(String key, String name, String env, String healthUrl) {
         ServiceEntity e = new ServiceEntity();
         e.key = key;
@@ -106,119 +110,8 @@ public class ServiceEntity {
         updatedAt = Instant.now();
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getEnv() {
-        return env;
-    }
-
-    public void setEnv(String env) {
-        this.env = env;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getTeam() {
-        return team;
-    }
-
-    public void setTeam(String team) {
-        this.team = team;
-    }
-
-    public String getHealthUrl() {
-        return healthUrl;
-    }
-
-    public void setHealthUrl(String healthUrl) {
-        this.healthUrl = healthUrl;
-    }
-
-    public List<String> getTags() {
-        return tags;
-    }
-
+    /** Null-safe setter: a missing tags array becomes an empty list (wire: []). */
     public void setTags(List<String> tags) {
         this.tags = tags == null ? new ArrayList<>() : tags;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
-    public Instant getStatusChangedAt() {
-        return statusChangedAt;
-    }
-
-    public void setStatusChangedAt(Instant statusChangedAt) {
-        this.statusChangedAt = statusChangedAt;
-    }
-
-    public Integer getLatencyMs() {
-        return latencyMs;
-    }
-
-    public void setLatencyMs(Integer latencyMs) {
-        this.latencyMs = latencyMs;
-    }
-
-    public Instant getLastCheckedAt() {
-        return lastCheckedAt;
-    }
-
-    public void setLastCheckedAt(Instant lastCheckedAt) {
-        this.lastCheckedAt = lastCheckedAt;
-    }
-
-    public int getConsecutiveFailures() {
-        return consecutiveFailures;
-    }
-
-    public void setConsecutiveFailures(int consecutiveFailures) {
-        this.consecutiveFailures = consecutiveFailures;
-    }
-
-    public Instant getNextCheckAt() {
-        return nextCheckAt;
-    }
-
-    public void setNextCheckAt(Instant nextCheckAt) {
-        this.nextCheckAt = nextCheckAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 }
