@@ -165,6 +165,7 @@ sequenceDiagram
 4. Independently, `PostgresNotifySubscriber` (a `Thread.ofVirtual()` started in `@PostConstruct`) runs `LISTEN status_events` on a dedicated connection and drains `PGNotification[]`; each payload is JSON-parsed to `StatusEvent` and forwarded to `sseBroker.broadcast(event)`.
 5. `SseBroker.broadcast` sends `SseEmitter.event().name("status.changed").data(event)` to every emitter of the matching env — **regardless of which instance collected the transition** (that is the whole point of the `NOTIFY` re-broadcast).
 6. `app.js` on `status.changed`: flips the card's class + badge, then re-fetches `GET /api/v1/services?env=…` to reconcile counters (idempotent).
+7. **Drill-down** (`app.js`, `index.html`): each card is a keyboard-operable `role="button"` that opens a `role="dialog"` panel showing the service's identity/state (name, key, env, status, latency, `lastCheckedAt`, `consecutiveFailures`, `statusChangedAt`) plus its history table from `GET /api/v1/services/{id}/history?limit=50` (`from → to`, `at`, `reason`) — with loading/empty/error states, `Escape`/`×` to close, and a live re-fetch of history when a `status.changed` event targets the open service.
 
 ### 3.4 Startup wiring (easy to miss)
 

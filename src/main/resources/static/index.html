@@ -7,6 +7,7 @@
   <style>
     :root { --bg: #0f172a; --card: #1e293b; --text: #e2e8f0; --muted: #94a3b8; }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            background: var(--bg); color: var(--text); }
     header { padding: 1.5rem 2rem; border-bottom: 1px solid #334155; display: flex;
@@ -18,7 +19,11 @@
     .counter.up b { color: #22c55e; } .counter.degraded b { color: #eab308; }
     .counter.down b { color: #ef4444; } .counter.unknown b { color: #94a3b8; }
     main { padding: 2rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
-    .card { background: var(--card); border-radius: .75rem; padding: 1rem; border-left: 4px solid #64748b; }
+    .card { background: var(--card); border-radius: .75rem; padding: 1rem; border-left: 4px solid #64748b;
+            cursor: pointer; }
+    .card:hover { box-shadow: 0 0 0 1px #475569; }
+    .card:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+    .card.open { box-shadow: 0 0 0 2px #38bdf8; }
     .card.up { border-left-color: #22c55e; } .card.degraded { border-left-color: #eab308; }
     .card.down { border-left-color: #ef4444; } .card.unknown { border-left-color: #94a3b8; }
     .card h2 { margin: 0 0 .25rem; font-size: 1.05rem; }
@@ -28,10 +33,41 @@
     .status.up { background: #14532d; color: #4ade80; } .status.degraded { background: #713f12; color: #facc15; }
     .status.down { background: #7f1d1d; color: #f87171; } .status.unknown { background: #334155; color: #94a3b8; }
     .card .meta { color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+    .card .hint { color: var(--muted); font-size: .72rem; margin-top: .6rem; opacity: .75; }
+    .card:hover .hint { opacity: 1; }
     .env-control { display: flex; align-items: center; gap: .5rem; }
     .env-control select { background: var(--card); color: var(--text); border: 1px solid #334155;
                           border-radius: .5rem; padding: .4rem .6rem; }
     #conn { font-size: .75rem; color: var(--muted); }
+
+    /* Detail panel (drill-down) */
+    .panel-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, .6);
+                      display: flex; align-items: flex-start; justify-content: center;
+                      padding: 3rem 1rem 1rem; z-index: 40; }
+    .panel { background: var(--card); border: 1px solid #334155; border-radius: .75rem;
+             width: min(680px, 100%); max-height: calc(100vh - 4rem);
+             display: flex; flex-direction: column; overflow: hidden; }
+    .panel:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+                  padding: 1rem 1rem .25rem; }
+    .panel-title { margin: 0; font-size: 1.15rem; }
+    .panel-meta { color: var(--muted); font-size: .8rem; margin-top: .25rem; }
+    .panel-close { background: transparent; border: 1px solid #334155; color: var(--text);
+                   border-radius: .375rem; padding: .3rem .65rem; cursor: pointer; font-size: .85rem; }
+    .panel-close:hover { background: #334155; }
+    .panel-status { padding: .5rem 1rem; display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .panel-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .15rem .75rem;
+                   font-size: .82rem; }
+    .panel-facts dt { color: var(--muted); }
+    .panel-facts dd { margin: 0; }
+    .panel-sub { margin: 0; padding: .75rem 1rem .5rem; font-size: .78rem; text-transform: uppercase;
+                 letter-spacing: .05em; color: var(--muted); border-top: 1px solid #334155; }
+    .panel-body { padding: 0 1rem 1rem; overflow-y: auto; }
+    .panel-history table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .panel-history th, .panel-history td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid #334155; }
+    .panel-history th { color: var(--muted); font-weight: 600; }
+    .panel-note { color: var(--muted); font-size: .82rem; padding: .5rem 0; }
+    .panel-error { color: #f87171; font-size: .82rem; padding: .5rem 0; }
   </style>
 </head>
 <body>
@@ -54,6 +90,23 @@
     </div>
   </header>
   <main id="grid"></main>
+
+  <div id="panel-backdrop" class="panel-backdrop" hidden>
+    <section id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title" tabindex="-1">
+      <header class="panel-head">
+        <div>
+          <h2 id="panel-title" class="panel-title"></h2>
+          <div id="panel-meta" class="panel-meta"></div>
+        </div>
+        <button id="panel-close" class="panel-close" type="button" aria-label="Close">&times;</button>
+      </header>
+      <div id="panel-status" class="panel-status"></div>
+      <h3 class="panel-sub">Status history</h3>
+      <div class="panel-body">
+        <div id="panel-history" class="panel-history" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>

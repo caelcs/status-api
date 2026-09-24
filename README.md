@@ -226,6 +226,13 @@ Or:
 **What you should see:** a green status matrix (5 rows) plus aggregate counters
 ("5 up / 0 down / …"), live-updating via SSE.
 
+**Click a card to see its history:** every service card is clickable — click (or
+focus it and press Enter/Space) to open a detail panel showing that service's
+current state plus its transition history (`from → to`, when, and why each
+change happened). Press Escape or the `×` button to close it; clicking another
+card switches the panel to that service. The history stays live while the panel
+is open.
+
 **Why any pod works:** there is no leader. A status transition collected by
 *one* instance is published to Postgres `LISTEN/NOTIFY`, and every instance
 forwards it to its own SSE clients — so the dashboard on `:8082` updates even
