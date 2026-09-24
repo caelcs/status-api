@@ -25,14 +25,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApi(ApiException ex, HttpServletRequest request) {
         HttpStatus status = ex.getStatus();
-        ProblemDetail body;
-        if (status == HttpStatus.FORBIDDEN || status == HttpStatus.UNAUTHORIZED) {
-            // exact 4-field payloads per api-contract §2.1
-            body = ProblemDetail.minimal(status.value(), ex.getTitle(), ex.getMessage());
-        } else {
-            body = ProblemDetail.full(status.value(), ex.getTitle(), ex.getMessage(),
-                    request.getRequestURI(), RequestIdFilter.currentId());
-        }
+        ProblemDetail body = switch (ex) {
+            // 403 (and 401, which the filter emits directly) -> exact 4-field payloads per api-contract §2.1
+            case ApiException.Forbidden _ ->
+                    ProblemDetail.minimal(status.value(), ex.getTitle(), ex.getMessage());
+            case ApiException.BadRequest _, ApiException.NotFound _,
+                 ApiException.Conflict _, ApiException.Unprocessable _ ->
+                    ProblemDetail.full(status.value(), ex.getTitle(), ex.getMessage(),
+                            request.getRequestURI(), RequestIdFilter.currentId());
+        };
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(body);

@@ -60,15 +60,11 @@ public class HttpHealthProbeClient implements HealthProbeClient {
     }
 
     private String reasonFor(Exception e) {
-        if (e instanceof HttpTimeoutException) {
-            return "timeout";
-        }
-        if (e instanceof ConnectException) {
-            return "connect timeout";
-        }
-        if (e instanceof IOException) {
-            return "connection error";
-        }
-        return e.getClass().getSimpleName();
+        return switch (e) {
+            case HttpTimeoutException _ -> "timeout";
+            case ConnectException _ -> "connect timeout";
+            case IOException _ -> "connection error";
+            default -> e.getClass().getSimpleName();
+        };
     }
 }

@@ -13,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
@@ -40,26 +41,43 @@ public class PostgresNotifySubscriber implements DisposableBean {
 
     private void listenLoop() {
         while (running) {
-            try (Connection conn = dataSource.getConnection()) {
-                conn.setAutoCommit(true);
-                try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("LISTEN status_events");
-                }
-                PGConnection pg = conn.unwrap(PGConnection.class);
-                while (running) {
-                    PGNotification[] notifications = pg.getNotifications(1000);
-                    if (notifications != null) {
-                        for (PGNotification n : notifications) {
-                            handle(n.getParameter());
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                if (running) {
-                    log.warn("notify subscriber error, reconnecting: {}", e.getMessage());
-                    sleepQuietly(RECONNECT_DELAY_MS);
-                }
+            listenAndDrain();
+        }
+    }
+
+    /** Opens one connection, LISTENs, and drains notifications until the connection drops. */
+    private void listenAndDrain() {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(true);
+            listen(conn);
+            drain(conn.unwrap(PGConnection.class));
+        } catch (Exception e) {
+            if (running) {
+                log.warn("notify subscriber error, reconnecting: {}", e.getMessage());
+                sleepQuietly(RECONNECT_DELAY_MS);
             }
+        }
+    }
+
+    private void listen(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("LISTEN status_events");
+        }
+    }
+
+    private void drain(PGConnection pg) throws SQLException {
+        while (running) {
+            PGNotification[] notifications = pg.getNotifications(1000);
+            if (notifications == null || notifications.length == 0) {
+                continue;
+            }
+            forward(notifications);
+        }
+    }
+
+    private void forward(PGNotification[] notifications) {
+        for (PGNotification notification : notifications) {
+            handle(notification.getParameter());
         }
     }
 

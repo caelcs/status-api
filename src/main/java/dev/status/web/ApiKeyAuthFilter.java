@@ -5,6 +5,8 @@ import dev.status.port.ApiKeyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -33,11 +35,16 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String method = request.getMethod();
-        if (!("POST".equals(method) || "PUT".equals(method) || "DELETE".equals(method))) {
+        if (!isMutatingMethod(request.getMethod())) {
             return true;
         }
         return !request.getRequestURI().startsWith("/api/v1/services");
+    }
+
+    private boolean isMutatingMethod(String method) {
+        return HttpMethod.POST.matches(method)
+                || HttpMethod.PUT.matches(method)
+                || HttpMethod.DELETE.matches(method);
     }
 
     @Override
@@ -60,7 +67,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private void writeError(HttpServletResponse response, int status, String title, String detail) throws IOException {
         response.setStatus(status);
-        response.setContentType("application/problem+json");
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(
                 "{\"type\":\"about:blank\",\"title\":\"" + title + "\",\"status\":" + status + ",\"detail\":\"" + detail + "\"}");

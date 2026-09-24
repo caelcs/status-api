@@ -95,12 +95,10 @@ public class ServiceProbeWorker {
     }
 
     private String reasonFor(ProbeResult result) {
-        if (result.isNetworkError()) {
-            return result.reason();
-        }
-        if (!result.is2xx() && !result.isNeverProbed()) {
-            return "HTTP " + result.httpStatus();
-        }
-        return null;
+        return switch (result) {
+            case ProbeResult.NetworkError error -> error.reason();
+            case ProbeResult.HttpResult http when !http.is2xx() -> "HTTP " + http.status();
+            case ProbeResult.HttpResult _, ProbeResult.NeverProbed _ -> null;
+        };
     }
 }

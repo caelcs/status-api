@@ -1,41 +1,38 @@
 package dev.status.domain;
 
 /**
- * Result of a single health probe. {@link #httpStatus()} is the raw HTTP status
- * code (2xx/non-2xx), {@code -1} for a network error/timeout, or
- * {@link #NEVER} for a service that has never been probed.
+ * Result of a single health probe, modelled as a sealed hierarchy of the
+ * distinct outcome variants: an HTTP response, a network failure (timeout or
+ * connection error), or the never-probed sentinel. Consumers switch over the
+ * variants exhaustively (no {@code default}) via type patterns.
  */
-public record ProbeResult(
-        int httpStatus,
-        String bodyStatus,
-        long latencyMs,
-        String reason
-) {
+public sealed interface ProbeResult
+        permits ProbeResult.HttpResult, ProbeResult.NetworkError, ProbeResult.NeverProbed {
 
-    public static final int NEVER = -2;
-    public static final int NETWORK_ERROR = -1;
+    long latencyMs();
 
-    public static ProbeResult http(int status, String bodyStatus, long latencyMs) {
-        return new ProbeResult(status, bodyStatus, latencyMs, null);
+    static ProbeResult http(int status, String bodyStatus, long latencyMs) {
+        return new HttpResult(status, bodyStatus, latencyMs);
     }
 
-    public static ProbeResult error(long latencyMs, String reason) {
-        return new ProbeResult(NETWORK_ERROR, null, latencyMs, reason);
+    static ProbeResult error(long latencyMs, String reason) {
+        return new NetworkError(latencyMs, reason);
     }
 
-    public static ProbeResult neverProbed() {
-        return new ProbeResult(NEVER, null, 0, null);
+    static ProbeResult neverProbed() {
+        return new NeverProbed(0);
     }
 
-    public boolean isNeverProbed() {
-        return httpStatus == NEVER;
+    record HttpResult(int status, String bodyStatus, long latencyMs) implements ProbeResult {
+
+        public boolean is2xx() {
+            return status >= 200 && status < 300;
+        }
     }
 
-    public boolean is2xx() {
-        return httpStatus >= 200 && httpStatus < 300;
+    record NetworkError(long latencyMs, String reason) implements ProbeResult {
     }
 
-    public boolean isNetworkError() {
-        return httpStatus == NETWORK_ERROR;
+    record NeverProbed(long latencyMs) implements ProbeResult {
     }
 }
