@@ -120,7 +120,7 @@ Each flow is an ordered step list through the real classes. Method names are exa
 
 ```mermaid
 sequenceDiagram
-    participant L as ClaimLoop (@Scheduled 5s)
+    participant L as ClaimLoop @Scheduled 5s
     participant C as JdbcClaimRepository
     participant W as ServiceProbeWorker
     participant H as HttpHealthProbeClient
@@ -128,15 +128,15 @@ sequenceDiagram
     participant B as SseBroker/NotifyPublisher
 
     L->>C: claimDue(checkInterval, batchSize)
-    C->>DB: BEGIN; SELECT … WHERE next_check_at <= now() ORDER BY next_check_at LIMIT batch FOR UPDATE SKIP LOCKED
-    C->>DB: UPDATE … SET next_check_at = now() + interval WHERE id = ANY(claimed); COMMIT
+    C->>DB: BEGIN, SELECT ... WHERE next_check_at is due ORDER BY next_check_at LIMIT batch FOR UPDATE SKIP LOCKED
+    C->>DB: UPDATE ... SET next_check_at = now() + interval WHERE id = ANY(claimed), COMMIT
     DB-->>C: ClaimedService[]
     loop each claimed
         L->>W: probeExecutor.submit(worker.probe)
         W->>H: probe(healthUrl, timeout)
-        H-->>W: ProbeResult (HttpResult|NetworkError|NeverProbed)
-        W->>W: ProbeStatusMapping.map → Status
-        W->>C: writeBack(WriteBack) [unconditional]
+        H-->>W: ProbeResult (HttpResult / NetworkError / NeverProbed)
+        W->>W: ProbeStatusMapping.map -> Status
+        W->>C: writeBack(WriteBack) unconditional
         C->>DB: UPDATE services SET status, status_changed_at, latency_ms, last_checked_at, consecutive_failures WHERE id = ?
         alt transition
             W->>DB: historyRepository.save(transition)
@@ -206,14 +206,14 @@ Read in this sequence for the fastest mental model. Each "why" tells you what th
 
 ## 5. Test map
 
-The suite is **62 test methods** across **21 concrete test classes** (Gradle reports 21 result classes because `ProbeStatusMappingTest`'s `@Nested` `Mapping` container is emitted separately from its empty parent). Three abstract base classes (`BaseApiTest`, `MonitoringApiTest`, `RealServerMonitoringApiTest`) and four helpers (`PostgresHolder`, `AppInstance`, `TestKeys`, `test/FakeService`) provide the harness. All API tests run against **real Testcontainers Postgres** — no H2, no in-process mocks.
+The suite is **65 test methods** across **22 concrete test classes** (Gradle reports 22 result classes — `ProbeStatusMappingTest`'s `@Nested` `Mapping` container is emitted separately in place of its empty parent, so the result-class count coincides with the concrete-class count). Three abstract base classes (`BaseApiTest`, `MonitoringApiTest`, `RealServerMonitoringApiTest`) and four helpers (`PostgresHolder`, `AppInstance`, `TestKeys`, `test/FakeService`) provide the harness. All API tests run against **real Testcontainers Postgres** — no H2, no in-process mocks.
 
 | Group | Classes | What each proves | Single test to run for the area |
 |---|---|---|---|
 | **Unit (pure)** | `application/ProbeStatusMappingTest` | The probe→status mapping table (all 9 rows incl. tolerant-up + never-probed). | `ProbeStatusMappingTest` (mapping) |
 | **Claim SQL (unit+DB)** | `ClaimLoopSqlTest` | The claim-and-advance transaction yields **disjoint** claim sets under concurrency; `next_check_at` is advanced **at claim time**; a claimed-but-not-written-back row is not re-claimed. | `ClaimLoopSqlTest` — validate the distributed mechanism |
-| **API-first (MockMvc)** | `WalkingSkeletonApiTest`, `ServiceRegistrationApiTest`, `ServiceReadApiTest`, `ServiceUpdateDeleteApiTest`, `ServiceHistoryApiTest`, `ContractGoldenTest`, `OpenApiDocsApiTest` | Boot + health + empty list; full POST/GET/PUT/DELETE happy + error code matrix with exact RFC 9457 envelopes; env scoping, filters, pagination; wire JSON schemas; springdoc `/v3/api-docs` still documents every op. | `ContractGoldenTest` — validate the wire contract is intact |
-| **Fault injection (API-first)** | `MonitoringFaultInjectionApiTest`, `DashboardDataApiTest`, `DashboardReconcileTest` | Flip a `FakeService` down/up → transition + history + `consecutiveFailures` increment/reset; one `GET /services` returns matrix **and** counters; snapshot re-fetch reconciles a missed transition. | `MonitoringFaultInjectionApiTest` — validate transition detection |
+| **API-first (MockMvc)** | `WalkingSkeletonApiTest`, `ServiceRegistrationApiTest`, `ServiceReadApiTest`, `ServiceUpdateDeleteApiTest`, `ServiceHistoryApiTest`, `ContractGoldenTest`, `OpenApiDocsApiTest` | Boot + health + empty list; full POST/GET/PUT/DELETE happy + error code matrix with exact RFC 9457 envelopes; env scoping, filters, raw offset/limit pagination (exact offset skip); wire JSON schemas; springdoc `/v3/api-docs` still documents every op. | `ContractGoldenTest` — validate the wire contract is intact |
+| **Fault injection (API-first)** | `MonitoringFaultInjectionApiTest`, `DashboardDataApiTest`, `DashboardReconcileTest`, `BackpressureApiTest` | Flip a `FakeService` down/up → transition + history + `consecutiveFailures` increment/reset; one `GET /services` returns matrix **and** counters; snapshot re-fetch reconciles a missed transition; more due services than the in-flight cap → concurrency never exceeds `max-in-flight` (bounded in-flight). | `MonitoringFaultInjectionApiTest` — validate transition detection |
 | **SSE delivery** | `SseDeliveryApiTest`, `CrossInstanceNotifyTest` | A connected client sees a `status.changed` within one interval; a transition collected by instance A is delivered to a dashboard on instance B via `LISTEN/NOTIFY`. | `CrossInstanceNotifyTest` — validate the re-broadcast |
 | **Multi-instance** | `MultiInstanceRebalanceTest` | Recycle the owner → survivors continue on schedule, no duplicate probing, `consecutiveFailures`/status preserved, rebalance immediate. | `MultiInstanceRebalanceTest` — validate failover/rebalance |
 | **Observability** | `MetricsObservabilityTest`, `StructuredLoggingTest` | Prometheus exposes the metric set; transitions are logged and `up→up` is silent. | `StructuredLoggingTest` — validate transition-only logging |
@@ -278,7 +278,7 @@ Why this is safe: at-most-once is guaranteed the instant `JdbcClaimRepository.cl
 
 ```mermaid
 sequenceDiagram
-    participant Loop as ClaimLoop
+    participant CL as ClaimLoop
     participant Worker as ServiceProbeWorker
     participant Probe as HttpHealthProbeClient
     participant Mapping as ProbeStatusMapping
@@ -286,19 +286,19 @@ sequenceDiagram
     participant Broker as SseBroker
     participant Notify as PostgresNotifyPublisher
 
-    Loop->>Worker: probeExecutor.submit(probe(claimed))
+    CL->>Worker: probeExecutor.submit(probe(claimed))
     Worker->>Worker: inflight.acquireUninterruptibly() (max 10)
     Worker->>Probe: probe(healthUrl, timeout)
-    Probe-->>Worker: ProbeResult — never throws
+    Probe-->>Worker: ProbeResult - never throws
     Worker->>Mapping: map(result) to Status
-    Worker->>Worker: failures +1 on DOWN else 0 ; detect transition
-    Worker->>DB: writeBack — unconditional UPDATE
+    Worker->>Worker: failures +1 on DOWN else 0, detect transition
+    Worker->>DB: writeBack - unconditional UPDATE
     DB-->>Worker: committed
     Worker->>Worker: recordCheck + updateStatus
     alt transition only
         Worker->>DB: historyRepository.save(transition)
-        Worker->>Broker: broadcast(event) — local SSE
-        Worker->>Notify: publish(event) — pg_notify
+        Worker->>Broker: broadcast(event) - local SSE
+        Worker->>Notify: publish(event) - pg_notify
     end
     Worker->>Worker: finally release semaphore
 ```
@@ -326,22 +326,22 @@ The part that matters is the **two feeds** into `broadcast`:
 
 ```mermaid
 sequenceDiagram
-    participant WorkerB as ServiceProbeWorker (collecting instance B)
-    participant BrokerB as SseBroker (B)
+    participant WorkerB as "ServiceProbeWorker (collecting instance B)"
+    participant BrokerB as "SseBroker (B)"
     participant ClientB as Browser on B
-    participant Notify as PostgresNotifyPublisher (B)
+    participant Notify as "PostgresNotifyPublisher (B)"
     participant PG as Postgres
-    participant SubscriberA as PostgresNotifySubscriber (instance A)
-    participant BrokerA as SseBroker (A)
+    participant SubscriberA as "PostgresNotifySubscriber (instance A)"
+    participant BrokerA as "SseBroker (A)"
     participant ClientA as Browser on A
 
-    WorkerB->>BrokerB: broadcast(event) — feed 1 (local)
+    WorkerB->>BrokerB: broadcast(event) - feed 1 (local)
     BrokerB-->>ClientB: status.changed
     WorkerB->>Notify: publish(event)
     Notify->>PG: pg_notify(status_events, json)
     Note over PG,SubscriberA: delivered to every LISTENing subscriber (A, C, ... and B's own)
     PG-->>SubscriberA: NOTIFY status_events
-    SubscriberA->>BrokerA: broadcast(event) — feed 2 (cross-instance)
+    SubscriberA->>BrokerA: broadcast(event) - feed 2 (cross-instance)
     BrokerA-->>ClientA: status.changed
 ```
 
