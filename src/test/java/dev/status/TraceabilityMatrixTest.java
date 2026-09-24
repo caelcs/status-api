@@ -27,11 +27,10 @@ class TraceabilityMatrixTest {
                     "dev.status.ServiceRegistrationApiTest.given_devKey_when_postProdEnv_then_403Exact",
                     "dev.status.ServiceReadApiTest.given_devAndProdServices_when_listByEnv_then_onlyMatchingEnv")),
             new Row("FR3", List.of(
-                    "dev.status.ClaimLoopSqlTest.given_dueRow_when_twoInstancesClaimConcurrently_then_exactlyOneWinner",
-                    "dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates")),
+                    "dev.status.ClaimLoopSqlTest.given_dueRows_when_twoClaimersClaimConcurrently_then_disjointRowSets",
+                    "dev.status.ClaimLoopSqlTest.given_dueRow_when_claimed_then_nextCheckAtAdvanced")),
             new Row("FR4", List.of(
-                    "dev.status.application.BackoffCalculatorTest$Intervals.given_threeFailures_when_nextDelay_then_60s",
-                    "dev.status.MonitoringFaultInjectionApiTest.given_serviceUp_when_flippedDown_then_transitionHistoryAndFailures")),
+                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit")),
             new Row("FR5", List.of("dev.status.application.ProbeStatusMappingTest$Mapping.given_2xxWithOk_when_mapped_then_up")),
             new Row("FR6", List.of(
                     "dev.status.MonitoringFaultInjectionApiTest.given_serviceUp_when_flippedDown_then_transitionHistoryAndFailures",
@@ -46,7 +45,7 @@ class TraceabilityMatrixTest {
             new Row("FR10", List.of(
                     "dev.status.MetricsObservabilityTest.given_checksRun_when_prometheus_then_metricsExposed",
                     "dev.status.StructuredLoggingTest.given_transition_when_logged_then_transitionsLogged_and_upStaysUpSilent")),
-            new Row("FR11", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates")),
+            new Row("FR11", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
             new Row("AC1", List.of("hub:python3 scripts/validate-registry.py")),
             new Row("AC2", List.of(
                     "dev.status.WalkingSkeletonApiTest.given_boot_when_health_then_200",
@@ -60,8 +59,10 @@ class TraceabilityMatrixTest {
                     "dev.status.ServiceRegistrationApiTest.given_malformedBody_when_post_then_400WithErrors")),
             new Row("AC5", List.of("dev.status.ServiceReadApiTest.given_devAndProdServices_when_listByEnv_then_onlyMatchingEnv")),
             new Row("AC6", List.of("dev.status.MonitoringFaultInjectionApiTest.given_serviceUp_when_flippedDown_then_transitionHistoryAndFailures")),
-            new Row("AC7", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates")),
-            new Row("AC8", List.of("dev.status.application.BackoffCalculatorTest$Intervals.given_manyFailures_when_nextDelay_then_cappedAt60s")),
+            new Row("AC7", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
+            new Row("AC8", List.of(
+                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit",
+                    "dev.status.MultiInstanceRebalanceTest.given_multipleInstances_when_sameDueWindow_then_eachSlotProbedOnce")),
             new Row("AC9", List.of("dev.status.SseDeliveryApiTest.given_connectedClient_when_transition_then_eventReceived")),
             new Row("AC10", List.of(
                     "dev.status.MockServiceFaultInjectionTest.given_mockService_when_faultToggledDown_then_cellRed_and_countersUpdate",
@@ -73,7 +74,7 @@ class TraceabilityMatrixTest {
             new Row("AC13", List.of(
                     "dev.status.ContractGoldenTest.given_missingKey_when_post_then_401ExactEnvelope",
                     "dev.status.ContractGoldenTest.given_devKey_when_postProd_then_403ExactEnvelope")),
-            new Row("AC14", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates")),
+            new Row("AC14", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
             new Row("AC15", List.of("dev.status.TraceabilityMatrixTest.given_matrix_when_everyRowNamed_then_allRefsResolve")),
             new Row("S50", List.of("dev.status.OpenApiDocsApiTest.given_appBooted_when_fetchApiDocs_then_documentedOperationsAndResponsesPresent"))
     );

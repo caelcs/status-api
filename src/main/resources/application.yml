@@ -52,15 +52,9 @@ springdoc:
 monitoring:
   check-interval: 15s
   timeout: 2s
-  lease-ttl: 30s
-  claim-cap: 50
   max-in-flight: 10
-  backoff-ms: [15000, 30000, 60000]
-  jitter: 0.2
-  claim-tick: 5s
+  batch-size: 50
   claim-tick-ms: 5000
-  heartbeat-interval: 10s
-  heartbeat-ttl: 30s
 
 logging:
   level:

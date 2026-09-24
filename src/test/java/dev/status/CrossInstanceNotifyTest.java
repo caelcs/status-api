@@ -25,7 +25,7 @@ class CrossInstanceNotifyTest {
 
     @Test
     void given_instanceACollects_when_instanceBDashboard_then_delivered() throws Exception {
-        try (AppInstance a = AppInstance.boot(AppInstance.baseProps(5));
+        try (AppInstance a = AppInstance.boot(AppInstance.baseProps());
              FakeService fake = new FakeService("up")) {
 
             // instance A registers and claims the service
@@ -35,7 +35,7 @@ class CrossInstanceNotifyTest {
             awaitStatus(a, id, "up", 15);
 
             // instance B joins AFTER the service is already owned by A
-            try (AppInstance b = AppInstance.boot(AppInstance.baseProps(5))) {
+            try (AppInstance b = AppInstance.boot(AppInstance.baseProps())) {
                 CompletableFuture<String> sse = openSse(b, "dev");
                 Thread.sleep(600);
                 fake.setMode("down"); // collected by A, delivered to B via NOTIFY

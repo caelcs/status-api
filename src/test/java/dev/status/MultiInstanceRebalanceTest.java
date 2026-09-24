@@ -7,22 +7,24 @@ import org.junit.jupiter.api.Test;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * FR3 / FR11 / AC7 / AC14: with 3 instances, killing the owner causes survivors
- * to re-claim within the lease TTL + one tick, with monitoring continuity and
- * no duplicate probing.
+ * FR11 / AC7 / AC14: with 3 instances, recycling one instance causes no
+ * duplicate probing (the schedule advanced at claim time), the next check
+ * happens on schedule, state is preserved, and rebalance is immediate (no
+ * TTL to wait out).
  */
 class MultiInstanceRebalanceTest {
 
     @Test
-    void given_ownerKilled_when_leaseExpires_then_survivorsReclaim_withoutDuplicates() throws Exception {
+    void given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates() throws Exception {
         List<AppInstance> instances = new ArrayList<>();
         try (FakeService fake = new FakeService("up")) {
-            // boot instance 0 first so it becomes the sole owner
-            AppInstance owner = AppInstance.boot(AppInstance.baseProps(2));
+            // boot instance 0 first so it becomes the first claimer
+            AppInstance owner = AppInstance.boot(AppInstance.baseProps());
             instances.add(owner);
 
             HttpResponse<String> reg = owner.post("/api/v1/services",
@@ -30,21 +32,21 @@ class MultiInstanceRebalanceTest {
             String id = JsonPath.read(reg.body(), "$.id");
             awaitStatus(owner, id, "up", 15);
 
-            // two survivors join while owner already holds the lease
-            instances.add(AppInstance.boot(AppInstance.baseProps(2)));
-            instances.add(AppInstance.boot(AppInstance.baseProps(2)));
+            // two survivors join while the owner is still running
+            instances.add(AppInstance.boot(AppInstance.baseProps()));
+            instances.add(AppInstance.boot(AppInstance.baseProps()));
 
             int probesBefore = fake.probeCount();
 
-            // kill the owner
+            // recycle the owner
             owner.close();
 
-            // wait lease TTL (2s) + one tick + buffer
-            Thread.sleep(5000);
+            // wait one check interval + one claim tick + buffer (no TTL)
+            Thread.sleep(3000);
 
             int probesAfter = fake.probeCount();
             assertThat(probesAfter)
-                    .as("survivors must re-claim and keep probing (continuity)")
+                    .as("survivors must keep probing (continuity)")
                     .isGreaterThan(probesBefore);
             // no duplicate probing: the probe rate stays ~1/check-interval, not 2x/3x
             assertThat(probesAfter - probesBefore)
@@ -58,6 +60,39 @@ class MultiInstanceRebalanceTest {
             assertThat(currentStatus).isEqualTo("up");
             int failures = JsonPath.read(status.body(), "$.consecutiveFailures");
             assertThat(failures).isZero();
+        } finally {
+            instances.forEach(AppInstance::close);
+        }
+    }
+
+    @Test
+    void given_multipleInstances_when_sameDueWindow_then_eachSlotProbedOnce() throws Exception {
+        int instanceCount = 3;
+        int serviceCount = 6;
+        List<AppInstance> instances = new ArrayList<>();
+        try (FakeService fake = new FakeService("up")) {
+            for (int i = 0; i < instanceCount; i++) {
+                Map<String, Object> props = AppInstance.baseProps();
+                props.put("monitoring.check-interval", "3s"); // wide window: exactly one claim round
+                instances.add(AppInstance.boot(props));
+            }
+
+            // all due now, pointing at the same fake service
+            for (int i = 0; i < serviceCount; i++) {
+                HttpResponse<String> reg = instances.get(0).post("/api/v1/services",
+                        registration(unique("svc"), "Service", "dev", fake.healthUrl()), TestKeys.DEV_KEY);
+                assertThat(reg.statusCode()).isEqualTo(201);
+            }
+
+            // wait for the single claim round to complete (each slot probed exactly once)
+            long deadline = System.currentTimeMillis() + 8000;
+            while (fake.probeCount() < serviceCount && System.currentTimeMillis() < deadline) {
+                Thread.sleep(100);
+            }
+
+            assertThat(fake.probeCount())
+                    .as("pod count must not multiply the check rate: each due slot is probed exactly once")
+                    .isEqualTo(serviceCount);
         } finally {
             instances.forEach(AppInstance::close);
         }

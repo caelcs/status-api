@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class AppInstance implements AutoCloseable {
 
-    public static Map<String, Object> baseProps(long leaseTtlSeconds) {
+    public static Map<String, Object> baseProps() {
         Map<String, Object> props = new HashMap<>();
         props.put("server.port", "0");
         props.put("spring.datasource.url", PostgresHolder.postgres.getJdbcUrl());
@@ -27,10 +27,7 @@ public final class AppInstance implements AutoCloseable {
         props.put("monitoring.enabled", "true");
         props.put("monitoring.claim-tick-ms", "400");
         props.put("monitoring.check-interval", "1s");
-        props.put("monitoring.lease-ttl", leaseTtlSeconds + "s");
         props.put("monitoring.timeout", "2s");
-        props.put("monitoring.backoff-ms", "1000,2000,4000");
-        props.put("monitoring.heartbeat-interval-ms", "1000");
         props.put("spring.main.banner-mode", "off");
         return props;
     }

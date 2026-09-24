@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Distributed claim/lease monitoring loop (ADR §4.4). Every tick atomically
- * claims due services (single conditional UPDATE -> one winner) and dispatches
- * each to the {@link ServiceProbeWorker} for probing under the bounded
- * in-flight semaphore. {@code fixedDelay} serializes ticks, so no overlap.
+ * Claim-and-advance monitoring loop (ADR §4.11). Every tick atomically claims
+ * due services ({@code FOR UPDATE SKIP LOCKED}) and dispatches each to the
+ * {@link ServiceProbeWorker} for probing under the bounded in-flight semaphore.
+ * {@code fixedDelay} serializes ticks, so no overlap.
  */
 @Component
 @ConditionalOnProperty(name = "monitoring.enabled", havingValue = "true", matchIfMissing = true)
@@ -27,7 +27,6 @@ public class ClaimLoop {
     private final MonitoringProperties props;
     private final ClaimRepository claimRepository;
     private final MonitoringMetrics metrics;
-    private final InstanceIdentity identity;
     private final ExecutorService probeExecutor;
     private final ServiceProbeWorker worker;
 
@@ -35,7 +34,7 @@ public class ClaimLoop {
     public void claimAndProbe() {
         List<ClaimedService> claimed;
         try {
-            claimed = claimRepository.claimDue(identity.id(), props.leaseTtl().toMillis(), props.claimCap());
+            claimed = claimRepository.claimDue(props.checkInterval(), props.batchSize());
         } catch (Exception e) {
             log.warn("claim loop error: {}", e.getMessage());
             return;

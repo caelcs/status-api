@@ -56,10 +56,6 @@ public class MonitoringMetrics {
         }
     }
 
-    public void recordClaimExpiry() {
-        registry.counter("status_claims_total", "outcome", "expired").increment();
-    }
-
     public void updateStatus(String service, String status) {
         upByService.put(service, "up".equals(status) ? 1.0 : 0.0);
         statusUp.register(upByService.entrySet().stream()
