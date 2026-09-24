@@ -3,6 +3,8 @@ package dev.status;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -96,6 +98,23 @@ class ServiceReadApiTest extends BaseApiTest {
                 .andExpect(jsonPath("$.limit").value(2))
                 .andExpect(jsonPath("$.offset").value(1))
                 // summary reflects the full filtered set, not the page
+                .andExpect(jsonPath("$.summary.total").value(5));
+    }
+
+    @Test
+    void given_servicesWithOrderedKeys_when_paginateWithRawOffset_then_exactSkip() throws Exception {
+        String tag = unique("pageexact");
+        String prefix = unique("svc");
+        for (String suffix : List.of("a", "b", "c", "d", "e")) {
+            register(prefix + "-" + suffix, "dev", TestKeys.DEV_KEY, tag);
+        }
+        mvc.perform(get("/api/v1/services").param("env", "dev").param("tag", tag)
+                        .param("limit", "2").param("offset", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(2)))
+                // raw offset (not a page number): skip exactly the first row by key
+                .andExpect(jsonPath("$.items[0].key").value(prefix + "-b"))
+                .andExpect(jsonPath("$.items[1].key").value(prefix + "-c"))
                 .andExpect(jsonPath("$.summary.total").value(5));
     }
 

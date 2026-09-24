@@ -45,7 +45,7 @@ All paths are under `src/main/java/dev/status/`. **Weight** marks whether a piec
 | Component | Single responsibility | Notes | Weight |
 |---|---|---|---|
 | `JdbcClaimRepository` | The claim-and-advance transaction: `SELECT … WHERE next_check_at <= now() ORDER BY next_check_at LIMIT batch FOR UPDATE SKIP LOCKED`, then `UPDATE … SET next_check_at = now() + interval WHERE id = ANY(claimed)`, all in one transaction; plus the unconditional write-back. **This is the core of the system.** | Raw `JdbcTemplate`; `@Transactional` | **Load-bearing** |
-| `JpaServiceRepository` | Spring Data JPA for `services`. | Derived queries | Thin |
+| `JpaServiceRepository` | Spring Data JPA for `services`. `search(...)`/`summarize(...)` push the list filtering (env/status/q/tag), `key` ordering, raw offset/limit pagination, and the summary counters into Postgres (native query: `strpos(lower(…))` for `q`, `jsonb_exists(tags, …)` for the JSONB tag predicate, and a conditional-aggregation `count(*) FILTER (…)` for the whole-filtered-set summary). | Derived + native queries | Thin |
 | `JpaApiKeyRepository` | Spring Data JPA for `api_keys`; `findActiveByKey` filters `revokedAt is null` in JPQL. | | Thin |
 | `JpaStatusHistoryRepository` | Spring Data JPA for `status_history`. | | Thin |
 | `HttpHealthProbeClient` | `java.net.http.HttpClient` single GET, 2s connect timeout, tolerant regex parse of the `"status"` field; all failures → `NetworkError` (never throws). | `reasonFor()` switch → "timeout"/"connect timeout"/"connection error" | **Load-bearing** |
@@ -56,7 +56,7 @@ All paths are under `src/main/java/dev/status/`. **Weight** marks whether a piec
 
 | Component | Single responsibility | Key collaborators | Weight |
 |---|---|---|---|
-| `ServiceCatalogService` | Registration/read/update/delete/history use cases. Enforces **env scoping** (`body.env` must equal the key's env → 403) and duplicate-key `409`. Computes the `summary` counters in-memory. | `ServiceRepository`, `StatusHistoryRepository`, `ApiException` | **Load-bearing** |
+| `CatalogService` | Registration/read/update/delete/history use cases. Enforces **env scoping** (`body.env` must equal the key's env → 403) and duplicate-key `409`. The list/history methods are thin: they normalize the optional query params and delegate filtering, ordering, pagination and the `summary` counters to the repository query layer. | `ServiceRepository`, `StatusHistoryRepository`, `ApiException` | **Load-bearing** |
 | `ClaimLoop` | `@Scheduled` (5s `fixedDelay`) dispatcher: calls `claimDue`, submits each claimed row to the probe executor. | `ClaimRepository`, `MonitoringMetrics`, `ServiceProbeWorker`, probe `ExecutorService` | **Load-bearing** |
 | `ServiceProbeWorker` | Per-claim probe: map result → status, `writeBack` (unconditional), and on transition append history + broadcast SSE + `NOTIFY`. | `HealthProbeClient`, `ProbeStatusMapping`, `ClaimRepository`, `StatusHistoryRepository`, `SseBroker`, `NotifyPublisher`, `MonitoringMetrics` | **Load-bearing** (the orchestrator of a single check) |
 | `ProbeStatusMapping` | `map(ProbeResult) → Status` as an exhaustive switch over the sealed `ProbeResult`. | | Thin but **load-bearing** (the mapping table, §contract §5) |
@@ -67,14 +67,14 @@ All paths are under `src/main/java/dev/status/`. **Weight** marks whether a piec
 
 | Component | Single responsibility | Key collaborators | Weight |
 |---|---|---|---|
-| `ServiceController` | `@RestController` for `/api/v1/services`; thin bodies: bind/validate → call `ServiceCatalogService` → map to response DTO. | `ServiceCatalogService`, `ServiceResponseMapper` | Thin |
+| `ServiceController` | `@RestController` for `/api/v1/services`; thin bodies: bind/validate → call `CatalogService` → map to response DTO. | `CatalogService`, `ServiceResponseMapper` | Thin |
 | `ServiceApi` | The **interface** carrying springdoc `@Operation`/`@Parameter`/`@ApiResponse` + Jakarta `@Pattern`/`@Min`/`@Max` parameter constraints (they must live here, not on the controller — Bean Validation §4.5.5). | `ServiceController` | Thin (see §6 for the "why") |
 | `SseController` | `GET /api/v1/events` → registers an `SseEmitter` with `SseBroker`, sets `no-cache`/`keep-alive`. | `SseBroker` | Thin |
 | `SseApi` | The springdoc-only interface for the SSE stream. | `SseController` | Thin |
 | `ApiKeyAuthFilter` | `OncePerRequestFilter` enforcing `X-API-Key` on mutating `/api/v1/services` methods; missing/unknown → 401 (inline 4-field envelope); else stores the key's bound `env` as request attr `statusApi.authEnv`. | `ApiKeyRepository` | **Load-bearing** |
 | `RequestIdFilter` | Assigns a `requestId` into MDC + `X-Request-Id` header. | (logging) | Thin, load-bearing (correlation) |
 | `GlobalExceptionHandler` | `@RestControllerAdvice` mapping `ApiException` + validation/type-mismatch/404/500 to RFC 9457 `ProblemDetail` envelopes (exhaustive switch over sealed `ApiException`). | `ProblemDetail`, `ApiException`, `RequestIdFilter` | **Load-bearing** (the error contract) |
-| `ApiException` | **Sealed** hierarchy of app errors: `BadRequest`/`Forbidden`/`NotFound`/`Conflict`/`Unprocessable`. Only `Forbidden`/`NotFound`/`Conflict` are ever thrown (§6). | `GlobalExceptionHandler`, `ServiceCatalogService` | Load-bearing (closed set); 2 of 5 subtypes are dead |
+| `ApiException` | **Sealed** hierarchy of app errors: `BadRequest`/`Forbidden`/`NotFound`/`Conflict`/`Unprocessable`. Only `Forbidden`/`NotFound`/`Conflict` are ever thrown (§6). | `GlobalExceptionHandler`, `CatalogService` | Load-bearing (closed set); 2 of 5 subtypes are dead |
 | `ProblemDetail` | RFC 9457 envelope record; `minimal()` (401/403) vs `full()` (instance+requestId); `errors[]` attached only when non-empty. | `GlobalExceptionHandler` | Thin, load-bearing |
 | `ServiceResponseMapper` | MapStruct `@Mapper(componentModel="spring")`: `dto.*` → `web.*Response`. Mechanical identity copy (§6). | `ServiceController` | Thin (**ceremonial** — the two type layers are field-identical) |
 | `ServiceListResponse` / `ServiceStatusResponse` / `StatusHistoryResponse` | Wire response records. | `ServiceResponseMapper` | Thin (duplicates of the `dto` records) |
@@ -109,7 +109,7 @@ Each flow is an ordered step list through the real classes. Method names are exa
 1. `RequestIdFilter` (web) — assigns `requestId` to MDC and echoes `X-Request-Id` (all requests).
 2. `ApiKeyAuthFilter.doFilterInternal` — only for `POST/PUT/DELETE` under `/api/v1/services`: reads `X-API-Key`; missing/blank/unknown → **401** (`{"type":"about:blank","title":"Unauthorized","status":401,"detail":"Invalid or missing API key"}`); else `apiKeyRepository.findActiveByKey(key)` and stores the key's `env` as request attribute `statusApi.authEnv`.
 3. `ServiceController.register` — `@Valid @RequestBody ServiceRegistration` (bean validation on the DTO) + `@RequestAttribute(ApiKeyAuthFilter.AUTH_ENV_ATTR) keyEnv`; calls `service.register(body, keyEnv)`.
-4. `ServiceCatalogService.register` — `enforceEnvMatch(body.env(), keyEnv)` (mismatch → `ApiException.forbidden` → **403**); `serviceRepository.existsByKeyAndEnv(key, env)` (duplicate → `ApiException.conflict` → **409**); `ServiceEntity.create(...)` (sets `status=UNKNOWN`, `nextCheckAt=now()`, `consecutiveFailures=0`); `applyMetadata`; `serviceRepository.save(entity)`.
+4. `CatalogService.register` — `enforceEnvMatch(body.env(), keyEnv)` (mismatch → `ApiException.forbidden` → **403**); `serviceRepository.existsByKeyAndEnv(key, env)` (duplicate → `ApiException.conflict` → **409**); construct the `ServiceEntity` from the `ServiceRegistration` body (a new service starts `status=UNKNOWN`, `nextCheckAt=now()`, `consecutiveFailures=0`); `serviceRepository.save(entity)`.
 5. `JpaServiceRepository` → Spring Data JPA → Postgres `services` row (Flyway schema `V1__baseline.sql`).
 6. Return path: `ServiceStatus.from(entity)` (`dto`) → `ServiceController` → `mapper.toResponse(...)` (`ServiceResponseMapper`, MapStruct → `web.ServiceStatusResponse`) → `ResponseEntity.status(201)`.
 7. Any thrown `ApiException` / validation failure / unknown route → `GlobalExceptionHandler` → `ProblemDetail` envelope.
@@ -196,7 +196,7 @@ Read in this sequence for the fastest mental model. Each "why" tells you what th
 5. `src/main/java/dev/status/port/ClaimRepository.java` → `adapter/JdbcClaimRepository.java` — the claim-and-advance SQL + unconditional write-back; the core mechanism, worth reading the SQL closely.
 6. `src/main/java/dev/status/application/ClaimLoop.java` → `application/ServiceProbeWorker.java` — the dispatcher and the per-check orchestrator; ties probe → map → write-back → history → broadcast together.
 7. `src/main/java/dev/status/domain/ProbeResult.java` → `application/ProbeStatusMapping.java` — the sealed result set and the exhaustive mapping (the contract's §5 table).
-8. `src/main/java/dev/status/web/ServiceController.java` → `application/ServiceCatalogService.java` — the read/write HTTP surface and the env-scoping business rules.
+8. `src/main/java/dev/status/web/ServiceController.java` → `application/CatalogService.java` — the read/write HTTP surface and the env-scoping business rules.
 9. `src/main/java/dev/status/web/ApiKeyAuthFilter.java` → `web/GlobalExceptionHandler.java` → `web/ProblemDetail.java` — auth + the RFC 9457 error envelopes.
 10. `src/main/java/dev/status/application/SseBroker.java` → `adapter/PostgresNotifySubscriber.java` → `web/SseController.java` — the SSE fan-out and cross-instance re-broadcast.
 11. `src/main/java/dev/status/config/MonitoringProperties.java` + `config/MonitoringConfiguration.java` — the tunables and DI wiring.
@@ -234,7 +234,7 @@ An honest split between indirection that pays for itself and decomposition that 
 - **The sealed result/exception sets (`ProbeResult`, `ApiException`)**. Sealing forces exhaustive switches with no `default`, so adding a probe outcome or error variant is a compile error until every consumer handles it. That is real correctness leverage, not ceremony.
 - **The port boundaries that map to a *different technology or a real seam***: `ClaimRepository` (raw JDBC vs JPA), `HealthProbeClient` (real outbound HTTP), `NotifyPublisher`/`PostgresNotifySubscriber` (Postgres `LISTEN/NOTIFY`). These are where you'd swap an implementation or fake a dependency.
 - **`RequestIdFilter` → MDC → `ProblemDetail.requestId`** — request correlation is part of the frozen error contract and the logging story.
-- **Env scoping in `ServiceCatalogService`** — row-level `env` isolation is a PRD guarantee, and it lives in exactly one place (the application service), which is correct.
+- **Env scoping in `CatalogService`** — row-level `env` isolation is a PRD guarantee, and it lives in exactly one place (the application service), which is correct.
 
 ### Incidental / ceremonial decomposition — the "so many moving parts"
 
@@ -248,7 +248,106 @@ These are the pieces that make the codebase feel larger than it is. Most are **d
 
 ---
 
-## 7. Consolidation opportunities
+## 7. Deep dive: the monitoring and streaming core
+
+Two components carry the entire steady-state runtime: `ServiceProbeWorker` turns one claimed row into one persisted result (and, on a change, a transition), and `SseBroker` turns any transition into a live browser update. Read them together and "how does this actually work" collapses to a dozen lines.
+
+### 7.1 `ServiceProbeWorker` — the per-check orchestrator
+
+`ClaimLoop.claimAndProbe()` submits each `ClaimedService` to the virtual-thread `probeExecutor`; each submitted task is **one** `ServiceProbeWorker.probe(ClaimedService service)`. That one method is the whole per-check pipeline:
+
+1. **Acquire the bounded in-flight semaphore** — `inflight.acquireUninterruptibly()`, then `metrics.setInflight(inflightCount())`. The semaphore (`monitoringInflightSemaphore`, default `maxInFlight = 10`) is the **one retained** backpressure guard: it caps concurrent probes so a slow `healthUrl` can't pile up virtual threads/sockets, and it does **not** multiply the check rate.
+2. **Probe** — `probeClient.probe(service.healthUrl(), props.timeout())`. `HttpHealthProbeClient` issues a single `GET` with a 2s connect timeout and the `props.timeout()` (default 2s) request timeout, tolerantly regex-parses the `"status"` field, and **never throws**: every failure becomes `ProbeResult.NetworkError` with a reason (`"timeout"` / `"connect timeout"` / `"connection error"` / class simple name).
+3. **Map** — `mapping.map(result)` (`ProbeStatusMapping`) is an exhaustive switch over the sealed `ProbeResult` with no `default`: `null` and `NeverProbed` → `UNKNOWN`; `NetworkError` → `DOWN`; `HttpResult` 2xx + `"degraded"` body status → `DEGRADED`; `HttpResult` 2xx (ok/missing/other) → `UP` (tolerant-up); non-2xx → `DOWN`.
+4. **Failure accounting** — `failures = (newStatus == Status.DOWN) ? service.consecutiveFailures() + 1 : 0`. Increment on `DOWN`, reset to `0` on any other result. (`service.consecutiveFailures()` was re-read into `ClaimedService` at claim time.)
+5. **Transition detection** — `transition = newStatus != service.status()`; `statusChangedAt = transition ? Instant.now() : service.statusChangedAt()`. The timestamp advances **only** on an actual change; `service.status()` / `statusChangedAt()` are the snapshot columns carried in `ClaimedService`.
+6. **Build the write-back** — `WriteBack(serviceId, newStatus, statusChangedAt, latency, failures)`, where `latency = (int) min(result.latencyMs(), Integer.MAX_VALUE)` and `reason = reasonFor(result)` (`NetworkError` → its reason; non-2xx `HttpResult` → `"HTTP <code>"`; otherwise `null`).
+7. **Unconditional write-back** — `claimRepository.writeBack(writeBack)` runs the plain `UPDATE services SET status=?, status_changed_at=?, latency_ms=?, last_checked_at=now(), consecutive_failures=? WHERE id=?`. **There is no ownership re-check — and none is needed:** `next_check_at` was already advanced in the claim transaction, so there is no lease/owner to verify and no "claim lost" branch. Note `next_check_at` is **not** touched here.
+8. **Metrics** — `metrics.recordCheck(key, newStatus, latencyMs)` (counter `status_checks_total{service,result}` + timer `status_check_duration_seconds`) and `metrics.updateStatus(key, newStatus)` (the `status_up` MultiGauge).
+9. **On transition only** — `historyRepository.save(StatusHistoryEntity.transition(serviceId, from, to, reason))` appends a `status_history` row; build `StatusEvent.changed(...)`; `log.info("status changed …")`; `metrics.recordTransition(from, to)` (`status_transitions_total{from,to}`); `sseBroker.broadcast(event)` (local SSE clients); `notifyPublisher.publish(event)` (`PostgresNotifyPublisher` → `pg_notify('status_events', json)`).
+10. **Cleanup** — `finally` releases the semaphore and re-sets the inflight gauge; a catch-all `Exception` logs `"unexpected collector error"`. `up`-stays-`up` / `down`-stays-`down` are intentionally **silent** (transition-only logging).
+
+**What the worker no longer does** — this is the whole point of the claim-and-advance redesign (ADR §4.11):
+
+- **No next-check-time computation.** The schedule is a fixed interval, advanced inside the claim transaction (`next_check_at = now() + interval`), not `now() + interval × backoff × jitter`. The worker never computes when the next check happens.
+- **No backoff, no jitter.** `consecutiveFailures` still increments/resets, but it is now just a persisted column, not an input to scheduling.
+- **No claim-lost / ownership re-check branch.** `writeBack` is unconditional; the lease-era "did I still own this row?" `false`-return path is gone.
+- **No lease renewal.** There is no lease.
+
+Why this is safe: at-most-once is guaranteed the instant `JdbcClaimRepository.claimDue` advances `next_check_at`. From then on the worker's only job is "probe → map → persist → fan out"; a crash mid-flight can only lose that one check (a one-interval gap), never duplicate it.
+
+```mermaid
+sequenceDiagram
+    participant Loop as ClaimLoop
+    participant Worker as ServiceProbeWorker
+    participant Probe as HttpHealthProbeClient
+    participant Mapping as ProbeStatusMapping
+    participant DB as Postgres
+    participant Broker as SseBroker
+    participant Notify as PostgresNotifyPublisher
+
+    Loop->>Worker: probeExecutor.submit(probe(claimed))
+    Worker->>Worker: inflight.acquireUninterruptibly() (max 10)
+    Worker->>Probe: probe(healthUrl, timeout)
+    Probe-->>Worker: ProbeResult — never throws
+    Worker->>Mapping: map(result) to Status
+    Worker->>Worker: failures +1 on DOWN else 0 ; detect transition
+    Worker->>DB: writeBack — unconditional UPDATE
+    DB-->>Worker: committed
+    Worker->>Worker: recordCheck + updateStatus
+    alt transition only
+        Worker->>DB: historyRepository.save(transition)
+        Worker->>Broker: broadcast(event) — local SSE
+        Worker->>Notify: publish(event) — pg_notify
+    end
+    Worker->>Worker: finally release semaphore
+```
+
+### 7.2 `SseBroker` — the per-instance emitter registry and its two feeds
+
+`SseBroker` holds this instance's live SSE connections in a single field:
+
+```java
+Map<String, Set<SseEmitter>> emittersByEnv = new ConcurrentHashMap<>();
+```
+
+- **`register(env, emitter)`** — `computeIfAbsent(env, k -> ConcurrentHashMap.newKeySet()).add(emitter)`, then wires `onCompletion` / `onTimeout` / `onError` to `remove(env, emitter)`. `SseController.events` calls it with `new SseEmitter(0L)` and answers `Cache-Control: no-cache`, `Connection: keep-alive`, `text/event-stream`.
+- **`remove(env, emitter)`** — a plain set-removal; called on completion, timeout, error, **and** on a failed send in `broadcast`.
+- **`broadcast(event)`** — env filtering: look up `emittersByEnv.get(event.service().env())`, return if empty, else `emitter.send(SseEmitter.event().name("status.changed").data(event))` to each; a send failure logs and removes that emitter.
+
+The part that matters is the **two feeds** into `broadcast`:
+
+1. **Local feed — `ServiceProbeWorker`.** When *this* instance collects a transition, its worker calls `sseBroker.broadcast(event)` directly (step 9 above). This covers clients connected to the instance that did the probing.
+2. **Cross-instance feed — `PostgresNotifySubscriber`.** A `Thread.ofVirtual().name("pg-notify-listener")` (started in `@PostConstruct`) holds a dedicated connection with `LISTEN status_events`, drains `PGNotification[]` in a loop (`getNotifications(1000)`), JSON-parses each payload into a `StatusEvent`, and forwards it to `sseBroker.broadcast(event)`. On a dropped connection it reconnects after a 1s delay.
+
+**Why the dual feed exists.** Work is spread across instances by `FOR UPDATE SKIP LOCKED`, so a given service's transitions can land on *any* instance. Without the cross-instance feed, a browser connected to instance A would only see the transitions A itself collected. Every instance's worker publishes each transition with `pg_notify('status_events', …)`; Postgres delivers that notification to **every** `LISTEN`ing subscriber; each subscriber re-broadcasts to its **own** local clients. So a browser on any instance sees every transition — local ones via feed 1, remote ones via feed 2.
+
+**Delivery nuance (accurate, not a bug).** `NOTIFY` fans out to every listening session with **no origin filter** — the publishing instance's *own* subscriber is a separate connection, so it also receives its own `pg_notify` and re-broadcasts to the same clients the worker already reached. A client on the collecting instance therefore sees that transition **twice** (once from feed 1, once from the NOTIFY echo); clients on other instances see it once. This is harmless because the dashboard handler (`app.js` `status.changed`) is idempotent — it re-applies the same card class and re-fetches the snapshot. Effective SSE delivery is **at-least-once**, and the tests (`SseDeliveryApiTest`, `CrossInstanceNotifyTest`) assert containment, not exact frame count.
+
+```mermaid
+sequenceDiagram
+    participant WorkerB as ServiceProbeWorker (collecting instance B)
+    participant BrokerB as SseBroker (B)
+    participant ClientB as Browser on B
+    participant Notify as PostgresNotifyPublisher (B)
+    participant PG as Postgres
+    participant SubscriberA as PostgresNotifySubscriber (instance A)
+    participant BrokerA as SseBroker (A)
+    participant ClientA as Browser on A
+
+    WorkerB->>BrokerB: broadcast(event) — feed 1 (local)
+    BrokerB-->>ClientB: status.changed
+    WorkerB->>Notify: publish(event)
+    Notify->>PG: pg_notify(status_events, json)
+    Note over PG,SubscriberA: delivered to every LISTENing subscriber (A, C, ... and B's own)
+    PG-->>SubscriberA: NOTIFY status_events
+    SubscriberA->>BrokerA: broadcast(event) — feed 2 (cross-instance)
+    BrokerA-->>ClientA: status.changed
+```
+
+---
+
+## 8. Consolidation opportunities
 
 Bounded, behaviour-preserving candidates for the next phase. **Hard constraints honored throughout:** no wire-contract change (`ContractGoldenTest` stays green), no status-code/semantic change, no loss of PRD guarantees (failover/rebalance, backpressure, env scoping, API-first coverage, traceability). Ranked by **benefit ÷ risk**.
 
@@ -265,7 +364,7 @@ Bounded, behaviour-preserving candidates for the next phase. **Hard constraints 
 
 ---
 
-## 8. Glossary
+## 9. Glossary
 
 - **`env`** — a required dimension (`dev`, `prod`, …). Every service, API key, and history row is scoped to one `env`; an API key is bound to exactly one `env`, and a write whose body `env` doesn't match the key's `env` is `403`. Isolation is **row-level**, not schema-level.
 - **`key`** — a stable human-readable slug (e.g. `payments`), unique *within an env* (`^[a-z0-9][a-z0-9-]{1,63}$`). Not to be confused with the **API key** (`X-API-Key`) that authenticates writes.

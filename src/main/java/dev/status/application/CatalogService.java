@@ -2,7 +2,7 @@ package dev.status.application;
 
 import dev.status.domain.ServiceEntity;
 import dev.status.domain.Status;
-import dev.status.domain.StatusHistoryEntity;
+import dev.status.domain.StatusSummary;
 import dev.status.dto.ServiceHistory;
 import dev.status.dto.ServiceList;
 import dev.status.dto.ServiceRegistration;
@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,28 +25,23 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
-public class ServiceCatalogService {
+public class CatalogService {
 
     private final ServiceRepository serviceRepository;
     private final StatusHistoryRepository historyRepository;
 
     @Transactional(readOnly = true)
     public ServiceList list(String env, String statusFilter, String q, String tag, int limit, int offset) {
-        Status statusEnum = statusFilter == null ? null : Status.fromValue(statusFilter);
-        List<ServiceEntity> filtered = serviceRepository.findByEnv(env).stream()
-                .filter(s -> statusEnum == null || s.getStatus() == statusEnum)
-                .filter(s -> q == null || q.isBlank() || matchesQuery(s, q))
-                .filter(s -> tag == null || tag.isBlank() || (s.getTags() != null && s.getTags().contains(tag)))
-                .sorted(Comparator.comparing(ServiceEntity::getKey))
-                .toList();
-
-        ServiceList.Summary summary = summarize(filtered);
-        List<ServiceStatus> items = filtered.stream()
-                .skip(offset)
-                .limit(limit)
-                .map(ServiceStatus::from)
-                .toList();
-        return new ServiceList(items, summary, limit, offset);
+        String status = statusFilter == null ? null : Status.fromValue(statusFilter).value();
+        String query = blankToNull(q);
+        String tagFilter = blankToNull(tag);
+        List<ServiceEntity> page = serviceRepository.search(env, status, query, tagFilter, limit, offset);
+        StatusSummary summary = serviceRepository.summarize(env, status, query, tagFilter);
+        return new ServiceList(
+                page.stream().map(ServiceStatus::from).toList(),
+                new ServiceList.Summary(summary.total(), summary.up(), summary.degraded(), summary.down(), summary.unknown()),
+                limit,
+                offset);
     }
 
     @Transactional(readOnly = true)
@@ -62,10 +56,7 @@ public class ServiceCatalogService {
         serviceRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Service " + id + " does not exist"));
         List<ServiceHistory.StatusHistoryItem> items = historyRepository
-                .findByServiceId(id).stream()
-                .filter(h -> since == null || !h.getChangedAt().isBefore(since))
-                .filter(h -> until == null || !h.getChangedAt().isAfter(until))
-                .limit(limit)
+                .findHistory(id, since, until, limit).stream()
                 .map(h -> new ServiceHistory.StatusHistoryItem(
                         h.getServiceId(),
                         h.getFromStatus() == null ? null : h.getFromStatus().value(),
@@ -83,8 +74,8 @@ public class ServiceCatalogService {
             throw ApiException.conflict(
                     "Service with key '" + body.key() + "' already exists in environment '" + body.env() + "'");
         }
-        ServiceEntity entity = ServiceEntity.create(body.key(), body.name(), body.env(), body.healthUrl());
-        applyMetadata(entity, body);
+        ServiceEntity entity = ServiceEntity.create(
+                body.key(), body.name(), body.env(), body.description(), body.team(), body.healthUrl(), body.tags());
         return ServiceStatus.from(serviceRepository.save(entity));
     }
 
@@ -101,8 +92,8 @@ public class ServiceCatalogService {
             throw ApiException.conflict(
                     "Service with key '" + body.key() + "' already exists in environment '" + body.env() + "'");
         }
-        existing.setKey(body.key());
-        applyMetadata(existing, body);
+        existing.applyRegistration(
+                body.key(), body.name(), body.healthUrl(), body.description(), body.team(), body.tags());
         return ServiceStatus.from(serviceRepository.save(existing));
     }
 
@@ -122,32 +113,7 @@ public class ServiceCatalogService {
         }
     }
 
-    private void applyMetadata(ServiceEntity entity, ServiceRegistration body) {
-        entity.setName(body.name());
-        entity.setDescription(body.description());
-        entity.setTeam(body.team());
-        entity.setHealthUrl(body.healthUrl());
-        entity.setTags(body.tags());
-    }
-
-    private boolean matchesQuery(ServiceEntity s, String q) {
-        String needle = q.toLowerCase();
-        return s.getName().toLowerCase().contains(needle) || s.getKey().toLowerCase().contains(needle);
-    }
-
-    private ServiceList.Summary summarize(List<ServiceEntity> services) {
-        int up = 0;
-        int degraded = 0;
-        int down = 0;
-        int unknown = 0;
-        for (ServiceEntity s : services) {
-            switch (s.getStatus()) {
-                case UP -> up++;
-                case DEGRADED -> degraded++;
-                case DOWN -> down++;
-                case UNKNOWN -> unknown++;
-            }
-        }
-        return new ServiceList.Summary(services.size(), up, degraded, down, unknown);
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

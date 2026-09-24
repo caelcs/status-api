@@ -79,16 +79,34 @@ public class ServiceEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public static ServiceEntity create(String key, String name, String env, String healthUrl) {
+    public static ServiceEntity create(String key, String name, String env, String description, String team, String healthUrl, List<String> tags) {
         ServiceEntity e = new ServiceEntity();
         e.key = key;
         e.name = name;
         e.env = env;
+        e.description = description;
+        e.team = team;
         e.healthUrl = healthUrl;
+        e.setTags(tags);
         e.status = Status.UNKNOWN;
         e.consecutiveFailures = 0;
         e.nextCheckAt = Instant.now();
         return e;
+    }
+
+    /**
+     * Applies the registration fields to an existing entity in one place. Does
+     * not touch the live probe state ({@code status}, {@code statusChangedAt},
+     * {@code lastCheckedAt}, {@code latencyMs}, {@code consecutiveFailures},
+     * {@code nextCheckAt}) nor {@code id}/{@code createdAt}.
+     */
+    public void applyRegistration(String key, String name, String healthUrl, String description, String team, List<String> tags) {
+        this.key = key;
+        this.name = name;
+        this.healthUrl = healthUrl;
+        this.description = description;
+        this.team = team;
+        setTags(tags);
     }
 
     @PrePersist

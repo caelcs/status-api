@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,10 +15,18 @@ import java.util.UUID;
 public interface JpaStatusHistoryRepository extends JpaRepository<StatusHistoryEntity, Long>, StatusHistoryRepository {
 
     @Override
-    @Query("""
-            select h from StatusHistoryEntity h
-            where h.serviceId = :serviceId
-            order by h.changedAt desc
-            """)
-    List<StatusHistoryEntity> findByServiceId(@Param("serviceId") UUID serviceId);
+    @Query(value = """
+            SELECT *
+            FROM status_history h
+            WHERE h.service_id = :serviceId
+              AND (cast(:since as timestamptz) IS NULL OR h.changed_at >= :since)
+              AND (cast(:until as timestamptz) IS NULL OR h.changed_at <= :until)
+            ORDER BY h.changed_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<StatusHistoryEntity> findHistory(
+            @Param("serviceId") UUID serviceId,
+            @Param("since") Instant since,
+            @Param("until") Instant until,
+            @Param("limit") int limit);
 }

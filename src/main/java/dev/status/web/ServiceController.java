@@ -1,6 +1,6 @@
 package dev.status.web;
 
-import dev.status.application.ServiceCatalogService;
+import dev.status.application.CatalogService;
 import dev.status.dto.ServiceRegistration;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ServiceController implements ServiceApi {
 
-    private final ServiceCatalogService service;
+    private final CatalogService service;
     private final ServiceResponseMapper mapper;
 
     @GetMapping
