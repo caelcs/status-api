@@ -25,4 +25,10 @@ public interface ClaimRepository {
      * re-check — the schedule was already advanced at claim time).
      */
     void writeBack(WriteBack writeBack);
+
+    /**
+     * Number of services whose scheduled check is overdue ({@code next_check_at <= now()}).
+     * The check-lag signal: grows while the claim rate falls behind the schedule.
+     */
+    long overdueCount();
 }

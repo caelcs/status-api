@@ -37,6 +37,15 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        readiness:
+          # Overload must never take readiness DOWN: a status monitor that is
+          # reported unready would be rescheduled by the orchestrator mid-outage.
+          exclude: probeCapacity
+        capacity:
+          # Non-fatal capacity signal (always UP; see ProbeCapacityHealthIndicator).
+          include: probeCapacity
+          show-details: always
   metrics:
     tags:
       application: ${spring.application.name}
@@ -55,6 +64,12 @@ monitoring:
   max-in-flight: 10
   batch-size: 50
   claim-tick-ms: 5000
+  # Capacity model (non-fatal): expectedMaxServices x expectedProbeLatency must be
+  # <= maxInFlight x checkInterval, or the fleet is oversubscribed (WARN + health
+  # detail, but the monitor still runs). expectedProbeLatency is the expected
+  # AVERAGE probe latency — not the 2s timeout, which is a worst-case bound.
+  expected-max-services: 50
+  expected-probe-latency: 1s
 
 logging:
   level:

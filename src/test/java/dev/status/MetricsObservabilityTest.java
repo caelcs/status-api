@@ -26,7 +26,9 @@ class MetricsObservabilityTest extends MonitoringApiTest {
                     .andExpect(content().string(containsString("status_up")))
                     .andExpect(content().string(containsString("status_claims_total")))
                     .andExpect(content().string(containsString("status_inflight_checks")))
-                    .andExpect(content().string(containsString("status_transitions_total")));
+                    .andExpect(content().string(containsString("status_transitions_total")))
+                    .andExpect(content().string(containsString("status_probe_queue_depth")))
+                    .andExpect(content().string(containsString("status_overdue_services")));
         }
     }
 

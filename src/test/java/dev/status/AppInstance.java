@@ -27,7 +27,7 @@ public final class AppInstance implements AutoCloseable {
         props.put("monitoring.enabled", "true");
         props.put("monitoring.claim-tick-ms", "400");
         props.put("monitoring.check-interval", "1s");
-        props.put("monitoring.timeout", "2s");
+        props.put("monitoring.timeout", "800ms");
         props.put("spring.main.banner-mode", "off");
         return props;
     }

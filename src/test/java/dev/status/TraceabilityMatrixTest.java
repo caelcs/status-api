@@ -30,7 +30,11 @@ class TraceabilityMatrixTest {
                     "dev.status.ClaimLoopSqlTest.given_dueRows_when_twoClaimersClaimConcurrently_then_disjointRowSets",
                     "dev.status.ClaimLoopSqlTest.given_dueRow_when_claimed_then_nextCheckAtAdvanced")),
             new Row("FR4", List.of(
-                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit")),
+                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit_and_queueStaysEmpty",
+                    "dev.status.ProbeOverloadApiTest.given_singleSlowService_when_probedRepeatedly_then_neverTwoConcurrentProbes",
+                    "dev.status.ProbeOverloadApiTest.given_moreDueServicesThanCapacity_when_claiming_then_unclaimedKeepOverdueAndAreClaimedLater",
+                    "dev.status.MonitoringConfigValidationTest.given_checkIntervalNotGreaterThanTimeout_when_booted_then_failsToStart",
+                    "dev.status.MonitoringConfigValidationTest.given_oversubscribedCapacity_when_booted_then_startsWarnsAndSurfacesDetail")),
             new Row("FR5", List.of("dev.status.application.ProbeStatusMappingTest$Mapping.given_2xxWithOk_when_mapped_then_up")),
             new Row("FR6", List.of(
                     "dev.status.MonitoringFaultInjectionApiTest.given_serviceUp_when_flippedDown_then_transitionHistoryAndFailures",
@@ -44,7 +48,8 @@ class TraceabilityMatrixTest {
             new Row("FR9", List.of("dev.status.MockServiceFaultInjectionTest.given_mockService_when_faultToggledDown_then_cellRed_and_countersUpdate")),
             new Row("FR10", List.of(
                     "dev.status.MetricsObservabilityTest.given_checksRun_when_prometheus_then_metricsExposed",
-                    "dev.status.StructuredLoggingTest.given_transition_when_logged_then_transitionsLogged_and_upStaysUpSilent")),
+                    "dev.status.StructuredLoggingTest.given_transition_when_logged_then_transitionsLogged_and_upStaysUpSilent",
+                    "dev.status.ProbeCapacityHealthTest.given_oversubscribedCapacity_when_readiness_then_staysUp_butIndicatorShowsOverload")),
             new Row("FR11", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
             new Row("AC1", List.of("hub:python3 scripts/validate-registry.py")),
             new Row("AC2", List.of(
@@ -61,7 +66,8 @@ class TraceabilityMatrixTest {
             new Row("AC6", List.of("dev.status.MonitoringFaultInjectionApiTest.given_serviceUp_when_flippedDown_then_transitionHistoryAndFailures")),
             new Row("AC7", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
             new Row("AC8", List.of(
-                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit",
+                    "dev.status.BackpressureApiTest.given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit_and_queueStaysEmpty",
+                    "dev.status.ProbeOverloadApiTest.given_moreDueServicesThanCapacity_when_claiming_then_unclaimedKeepOverdueAndAreClaimedLater",
                     "dev.status.MultiInstanceRebalanceTest.given_multipleInstances_when_sameDueWindow_then_eachSlotProbedOnce")),
             new Row("AC9", List.of("dev.status.SseDeliveryApiTest.given_connectedClient_when_transition_then_eventReceived")),
             new Row("AC10", List.of(

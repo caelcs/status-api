@@ -21,7 +21,9 @@ import java.util.concurrent.Semaphore;
 /**
  * Probes a single claimed service: map the result to a status, write it back
  * (unconditionally), and on a transition append history, emit metrics, and
- * broadcast the change over SSE + the Postgres NOTIFY bus.
+ * broadcast the change over SSE + the Postgres NOTIFY bus. The in-flight permit
+ * is acquired by {@link ClaimLoop} before this task is submitted — never here —
+ * so the task starts immediately and only releases the permit in {@code finally}.
  */
 @Component
 @RequiredArgsConstructor
@@ -39,8 +41,6 @@ public class ServiceProbeWorker {
     private final Semaphore inflight;
 
     public void probe(ClaimedService service) {
-        inflight.acquireUninterruptibly();
-        metrics.setInflight(inflightCount());
         try {
             ProbeResult result = probeClient.probe(service.healthUrl(), props.timeout());
             Status newStatus = mapping.map(result);

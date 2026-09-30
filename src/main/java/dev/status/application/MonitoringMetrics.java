@@ -1,5 +1,6 @@
 package dev.status.application;
 
+import dev.status.port.ClaimRepository;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -22,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MonitoringMetrics {
 
     private final MeterRegistry registry;
+    private final ClaimRepository claimRepository;
+    private final Semaphore inflightSemaphore;
     private final AtomicInteger inflight = new AtomicInteger(0);
     private final Map<String, Double> upByService = new ConcurrentHashMap<>();
 
@@ -36,9 +40,24 @@ public class MonitoringMetrics {
         Gauge.builder("status_inflight_checks", inflight, AtomicInteger::get)
                 .description("Current number of in-flight health checks")
                 .register(registry);
+        Gauge.builder("status_probe_queue_depth", inflightSemaphore, Semaphore::getQueueLength)
+                .description("Probe tasks parked waiting for an in-flight permit (0 by construction — a permit is held before submit)")
+                .register(registry);
+        Gauge.builder("status_overdue_services", this, MonitoringMetrics::overdueCount)
+                .description("Number of services whose scheduled check is overdue (next_check_at in the past) — the check-lag signal")
+                .register(registry);
         this.checkDuration = Timer.builder("status_check_duration_seconds")
                 .description("Duration of health checks")
                 .register(registry);
+    }
+
+    private long overdueCount() {
+        try {
+            return claimRepository.overdueCount();
+        } catch (Exception e) {
+            // Never let a metrics scrape take the exporter down if the DB is briefly unavailable.
+            return 0L;
+        }
     }
 
     public void recordCheck(String service, String result, long durationMs) {
@@ -54,6 +73,10 @@ public class MonitoringMetrics {
         if (count > 0) {
             registry.counter("status_claims_total").increment(count);
         }
+    }
+
+    public void recordSkippedTick() {
+        registry.counter("status_claim_ticks_skipped_total").increment();
     }
 
     public void updateStatus(String service, String status) {

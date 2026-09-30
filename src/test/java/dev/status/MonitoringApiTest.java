@@ -10,7 +10,7 @@ import org.springframework.test.context.TestPropertySource;
         "monitoring.enabled=true",
         "monitoring.claim-tick-ms=400",
         "monitoring.check-interval=1s",
-        "monitoring.timeout=2s"
+        "monitoring.timeout=800ms"
 })
 public abstract class MonitoringApiTest extends BaseApiTest {
 }

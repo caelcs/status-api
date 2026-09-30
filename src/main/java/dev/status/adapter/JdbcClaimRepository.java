@@ -21,8 +21,13 @@ import java.util.UUID;
 /**
  * Claim-and-advance work queue (ADR §4.11). Each tick runs one transaction that
  * atomically claims due rows with {@code FOR UPDATE SKIP LOCKED} and advances
- * their schedule at claim time — so a duplicate probe is impossible. Write-back
- * is a plain, unconditional UPDATE (no ownership re-check).
+ * their schedule at claim time — so a duplicate <em>claim</em> of the same slot
+ * is impossible (a pod dying mid-probe loses one check, never duplicates). This
+ * is at-most-once <em>per slot</em>, not "a probe is never duplicated": overlap
+ * (a second probe for a service while its previous one is still running/queued)
+ * can only occur if the system is oversubscribed, which the capacity-aware
+ * {@code ClaimLoop} plus the {@code checkInterval > timeout} boot invariant
+ * prevent. Write-back is a plain, unconditional UPDATE (no ownership re-check).
  */
 @Repository
 @RequiredArgsConstructor
@@ -89,6 +94,13 @@ public class JdbcClaimRepository implements ClaimRepository {
                 wb.latencyMs(),
                 wb.consecutiveFailures(),
                 wb.serviceId());
+    }
+
+    @Override
+    public long overdueCount() {
+        Long count = jdbc.queryForObject(
+                "SELECT count(*) FROM services WHERE next_check_at <= now()", Long.class);
+        return count == null ? 0L : count;
     }
 
     private static Instant toInstant(Timestamp ts) {
