@@ -357,7 +357,7 @@ JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.1-graalce" ./gradlew cleanTest tes
 - **Testcontainers needs a running Docker daemon** (the same engine that runs
   the sandbox) — it spins up throwaway Postgres containers for the integration
   tests.
-- Current expected tally: **65 tests / 22 classes, all green**.
+- Current expected tally: **80 tests / 26 classes, all green**.
 - `--no-build-cache` (or `cleanTest`) matters: a cached `:test` result is
   **not** evidence that the suite passed — force a fresh run.
 
@@ -412,18 +412,31 @@ To also drop the database volume (destructive, opt-in — next `up` reseeds from
 ### `monitoring.*` tunables
 
 Read from `application.yml`, overridable via `MONITORING_*` env vars (relaxed
-binding). Four are bound to `MonitoringProperties`
-(`@ConfigurationProperties(prefix = "monitoring")`); `claim-tick-ms` is **not** a
-`MonitoringProperties` field — it is read directly by `ClaimLoop`'s
-`@Scheduled(fixedDelayString = "${monitoring.claim-tick-ms:5000}")`.
+binding). All eight are typed, validated fields on `MonitoringProperties`
+(`@ConfigurationProperties(prefix = "monitoring")`), including the claim tick
+(`claimTickMs` — bound to `monitoring.claim-tick-ms`, so `MONITORING_CLAIM_TICK_MS`
+still works). Boot refuses impossible values (`≤ 0`,
+`check-interval ≤ timeout`, `claim-tick-ms ≥ check-interval`); capacity
+oversubscription is a WARN, not fatal.
 
 | Property | Default | Meaning | Compose override |
 |----------|---------|---------|------------------|
 | `monitoring.check-interval` | `15s` | Schedule interval between a service's probes | `5s` |
 | `monitoring.timeout` | `2s` | Per-probe HTTP timeout | — |
-| `monitoring.max-in-flight` | `10` | Bounded concurrent probes per instance | — |
-| `monitoring.batch-size` | `50` | Rows claimed per tick | — |
-| `monitoring.claim-tick-ms` | `5000` | Claim-loop tick frequency (bound via `@Scheduled`, not `MonitoringProperties`) | `2000` |
+| `monitoring.max-in-flight` | `10` | Bounded concurrent probes per instance (a permit is held before submit, so the queue is impossible by construction) | — |
+| `monitoring.batch-size` | `50` | Max rows claimed per tick (also bounded by the free permits) | — |
+| `monitoring.claim-tick-ms` | `5000` | Claim-loop tick frequency (typed `claimTickMs`; no inline `@Scheduled` default) | `2000` |
+| `monitoring.expected-max-services` | `50` | Expected fleet size for the capacity model | — |
+| `monitoring.expected-probe-latency` | `1s` | Expected *average* probe latency (not the 2s timeout) | — |
+| `monitoring.instance-count` | `1` | Number of `status-api` instances sharing the work-queue (divides fleet demand in the capacity model) | `3` |
+
+**Capacity invariant (non-fatal):** `expected-max-services × expected-probe-latency ≤ max-in-flight × check-interval × instance-count`. Violating it logs a WARN and surfaces the config lint as the `configuredOversubscribed` detail on `/actuator/health/capacity` — but `/actuator/health` and `/actuator/health/readiness` stay UP by design.
+
+**Overload / capacity observability.** Three signals, all non-fatal (they never take readiness DOWN):
+
+- `status_overdue_services` (Prometheus) — number of services whose scheduled check is overdue (`next_check_at` in the past); **`-1` means "unknown" (database unavailable)**, never a misleading `0`.
+- `/actuator/health/capacity` — the `probeCapacity` indicator (`show-details: always`): a **runtime** `overloaded` detail (`overdueServices > 0`, i.e. a service actually behind its schedule), `overdueServices` (`-1` = DB unknown), and the secondary `configuredOversubscribed` config lint, plus the capacity inputs.
+- `status_probe_queue_depth` (Prometheus) — the in-flight semaphore's queue length; stays `0` by construction (a permit is held before submit, so nothing ever parks).
 
 ### Where the docs live
 

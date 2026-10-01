@@ -22,6 +22,9 @@ public class MonitoringConfiguration {
 
     @Bean(destroyMethod = "close")
     public ExecutorService monitoringProbeExecutor() {
+        // Unbounded virtual-thread executor is safe by construction: ClaimLoop acquires
+        // an in-flight permit before submitting, so at most maxInFlight tasks exist at
+        // once and none ever parks — no bounded queue is needed (analysis-probe-overload.md).
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 }
