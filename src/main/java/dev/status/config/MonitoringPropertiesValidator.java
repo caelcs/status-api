@@ -33,6 +33,7 @@ public class MonitoringPropertiesValidator {
         requirePositive("monitoring.expected-probe-latency", props.expectedProbeLatency(), errors);
         requirePositive("monitoring.max-in-flight", props.maxInFlight(), errors);
         requirePositive("monitoring.batch-size", props.batchSize(), errors);
+        requirePositive("monitoring.instance-count", props.instanceCount(), errors);
 
         if (props.checkInterval().compareTo(props.timeout()) <= 0) {
             errors.add("monitoring.check-interval (" + props.checkInterval()
@@ -50,12 +51,12 @@ public class MonitoringPropertiesValidator {
         }
 
         if (props.oversubscribed()) {
-            log.warn("Monitoring capacity is oversubscribed: expectedMaxServices({}) × expectedProbeLatency({}) = {}ms exceeds maxInFlight({}) × checkInterval({}) = {}ms. "
+            log.warn("Monitoring capacity is oversubscribed: expectedMaxServices({}) × expectedProbeLatency({}) = {}ms exceeds maxInFlight({}) × checkInterval({}) × instanceCount({}) = {}ms. "
                             + "Checks will fall behind their interval (watch status_overdue_services). This is a warning, not fatal: monitoring continues with a bounded claim rate.",
                     props.expectedMaxServices(), props.expectedProbeLatency(),
                     (long) props.expectedMaxServices() * props.expectedProbeLatency().toMillis(),
-                    props.maxInFlight(), props.checkInterval(),
-                    (long) props.maxInFlight() * props.checkInterval().toMillis());
+                    props.maxInFlight(), props.checkInterval(), props.instanceCount(),
+                    (long) props.maxInFlight() * props.checkInterval().toMillis() * props.instanceCount());
         }
     }
 

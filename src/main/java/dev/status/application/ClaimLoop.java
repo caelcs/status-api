@@ -42,9 +42,11 @@ public class ClaimLoop {
     /**
      * The claim tick is a typed, validated {@link MonitoringProperties#claimTickMs()}
      * field (bound to {@code monitoring.claim-tick-ms}, so {@code MONITORING_CLAIM_TICK_MS}
-     * still works). {@code @Scheduled} reads the same key.
+     * still works). {@code @Scheduled} reads the same key; the value's single
+     * programmatic fallback is the {@code @DefaultValue} on {@code MonitoringProperties.claimTickMs}
+     * (there is no inline default here).
      */
-    @Scheduled(fixedDelayString = "${monitoring.claim-tick-ms:5000}")
+    @Scheduled(fixedDelayString = "${monitoring.claim-tick-ms}")
     public void claimAndProbe() {
         // Ticks are serialized by fixedDelay, so availablePermits() is read only by
         // this single scheduled thread. Workers only RELEASE permits (never acquire —

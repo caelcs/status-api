@@ -7,6 +7,7 @@ import ch.qos.logback.core.read.ListAppender;
 import dev.status.config.MonitoringProperties;
 import dev.status.config.MonitoringPropertiesValidator;
 import dev.status.config.ProbeCapacityHealthIndicator;
+import dev.status.port.ClaimRepository;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,6 +18,8 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Boot validation for the monitoring configuration (analysis-probe-overload.md
@@ -35,7 +38,9 @@ class MonitoringConfigValidationTest {
 
         @Bean
         ProbeCapacityHealthIndicator probeCapacity(MonitoringProperties props) {
-            return new ProbeCapacityHealthIndicator(props);
+            ClaimRepository repo = mock(ClaimRepository.class);
+            when(repo.overdueCount()).thenReturn(0L);
+            return new ProbeCapacityHealthIndicator(props, repo);
         }
     }
 
@@ -71,6 +76,11 @@ class MonitoringConfigValidationTest {
     }
 
     @Test
+    void given_zeroInstanceCount_when_booted_then_failsToStart() {
+        runner("monitoring.instance-count=0").run(ctx -> assertThat(ctx).hasFailed());
+    }
+
+    @Test
     void given_checkIntervalNotGreaterThanTimeout_when_booted_then_failsToStart() {
         runner("monitoring.check-interval=1s", "monitoring.timeout=2s")
                 .run(ctx -> assertThat(ctx).hasFailed());
@@ -95,7 +105,7 @@ class MonitoringConfigValidationTest {
                     .run(ctx -> {
                         assertThat(ctx).hasNotFailed();
                         ProbeCapacityHealthIndicator indicator = ctx.getBean(ProbeCapacityHealthIndicator.class);
-                        assertThat(indicator.health().getDetails().get("overloaded"))
+                        assertThat(indicator.health().getDetails().get("configuredOversubscribed"))
                                 .as("capacity oversubscription must be surfaced via the health detail")
                                 .isEqualTo(true);
                     });

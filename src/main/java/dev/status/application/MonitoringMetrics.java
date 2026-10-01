@@ -44,7 +44,7 @@ public class MonitoringMetrics {
                 .description("Probe tasks parked waiting for an in-flight permit (0 by construction — a permit is held before submit)")
                 .register(registry);
         Gauge.builder("status_overdue_services", this, MonitoringMetrics::overdueCount)
-                .description("Number of services whose scheduled check is overdue (next_check_at in the past) — the check-lag signal")
+                .description("Number of services whose scheduled check is overdue (next_check_at in the past) — the check-lag signal; -1 means unknown (database unavailable)")
                 .register(registry);
         this.checkDuration = Timer.builder("status_check_duration_seconds")
                 .description("Duration of health checks")
@@ -55,8 +55,10 @@ public class MonitoringMetrics {
         try {
             return claimRepository.overdueCount();
         } catch (Exception e) {
-            // Never let a metrics scrape take the exporter down if the DB is briefly unavailable.
-            return 0L;
+            // -1 means "unknown (database unavailable)". Never let a metrics scrape
+            // take the exporter down, and never report 0 (which would masquerade a
+            // DB outage as "nothing overdue" — healthy).
+            return -1L;
         }
     }
 

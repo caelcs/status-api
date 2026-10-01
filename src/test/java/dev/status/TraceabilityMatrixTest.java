@@ -49,7 +49,8 @@ class TraceabilityMatrixTest {
             new Row("FR10", List.of(
                     "dev.status.MetricsObservabilityTest.given_checksRun_when_prometheus_then_metricsExposed",
                     "dev.status.StructuredLoggingTest.given_transition_when_logged_then_transitionsLogged_and_upStaysUpSilent",
-                    "dev.status.ProbeCapacityHealthTest.given_oversubscribedCapacity_when_readiness_then_staysUp_butIndicatorShowsOverload")),
+                    "dev.status.ProbeCapacityHealthTest.given_oversubscribedCapacity_when_readiness_then_staysUp_butIndicatorShowsOverload",
+                    "dev.status.ProbeCapacityHealthIndicatorTest.given_overdueServices_when_health_then_overloadedTrue")),
             new Row("FR11", List.of("dev.status.MultiInstanceRebalanceTest.given_ownerKilled_when_recycled_then_survivorsContinue_withoutDuplicates")),
             new Row("AC1", List.of("hub:python3 scripts/validate-registry.py")),
             new Row("AC2", List.of(

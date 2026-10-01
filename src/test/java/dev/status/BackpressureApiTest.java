@@ -24,7 +24,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * the historical oversubscription bug: under the old "submit everything, acquire
  * inside the worker" design, the extra claims parked on the semaphore and
  * {@code getQueueLength()} grew unbounded; under the capacity-aware design it is
- * always 0.
+ * always 0. Each service is registered against its OWN fake so a per-service
+ * {@code probeCount >= 1} assertion proves no service is silently dropped (a
+ * shared fake could mask "2 services probed 4× + 6 probed 0×" as "all fine").
+ * Aggregate concurrency is observed via the in-flight semaphore (distinct fakes
+ * each see at most one concurrent probe, so a single fake's
+ * {@code maxActiveRequests} can no longer observe the cap).
  */
 @TestPropertySource(properties = "monitoring.max-in-flight=2")
 class BackpressureApiTest extends MonitoringApiTest {
@@ -35,18 +40,28 @@ class BackpressureApiTest extends MonitoringApiTest {
     @Test
     void given_moreDueServicesThanMaxInFlight_when_probing_then_concurrencyNeverExceedsLimit_and_queueStaysEmpty() throws Exception {
         List<String> ids = new ArrayList<>();
-        try (FakeService fake = new FakeService("slow")) {
-            fake.setSlowDelayMs(600); // under the 800ms timeout, long enough to overlap
-
-            for (int i = 0; i < 6; i++) {
+        List<FakeService> fakes = new ArrayList<>();
+        int n = 6;
+        try {
+            for (int i = 0; i < n; i++) {
+                FakeService fake = new FakeService("slow");
+                fake.setSlowDelayMs(600); // under the 800ms timeout, long enough to overlap
+                fakes.add(fake);
                 ids.add(register(fake.healthUrl()));
             }
 
-            // wait until the cap is reached (proves overlap is actually exercised)
+            // wait until the cap is reached (proves overlap is actually exercised).
+            // Distinct fakes each observe <= 1 concurrent probe, so aggregate
+            // concurrency is read from the in-flight semaphore (2 - availablePermits).
             long deadline = System.currentTimeMillis() + 5000;
-            while (fake.maxActiveRequests() < 2 && System.currentTimeMillis() < deadline) {
+            int maxConcurrency = 0;
+            while (System.currentTimeMillis() < deadline && maxConcurrency < 2) {
+                maxConcurrency = Math.max(maxConcurrency, 2 - inflightSemaphore.availablePermits());
                 Thread.sleep(50);
             }
+            assertThat(maxConcurrency)
+                    .as("concurrent probes must reach monitoring.max-in-flight (2)")
+                    .isEqualTo(2);
 
             // sample the no-queue invariant several times across the busy window
             for (int i = 0; i < 5; i++) {
@@ -56,9 +71,16 @@ class BackpressureApiTest extends MonitoringApiTest {
                 Thread.sleep(200);
             }
 
-            assertThat(fake.maxActiveRequests())
-                    .as("concurrent probes must never exceed monitoring.max-in-flight (2)")
-                    .isEqualTo(2);
+            // every service is eventually probed at least once (no silently-dropped service)
+            long livenessDeadline = System.currentTimeMillis() + 15000;
+            while (fakes.stream().anyMatch(f -> f.probeCount() < 1) && System.currentTimeMillis() < livenessDeadline) {
+                Thread.sleep(100);
+            }
+            for (int i = 0; i < n; i++) {
+                assertThat(fakes.get(i).probeCount())
+                        .as("service %d must be probed at least once (no silently-dropped service)", i)
+                        .isGreaterThanOrEqualTo(1);
+            }
         } finally {
             // clean up the registered services so they do not pollute other
             // tests sharing the suite Postgres (e.g. ClaimLoopSqlTest)
@@ -71,6 +93,7 @@ class BackpressureApiTest extends MonitoringApiTest {
                     // best-effort cleanup; the row may already be gone
                 }
             }
+            fakes.forEach(FakeService::close);
         }
     }
 

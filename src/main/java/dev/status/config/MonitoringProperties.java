@@ -19,8 +19,11 @@ import java.time.Duration;
  * </ul>
  *
  * <p>Capacity invariant (non-fatal — a WARN, not a startup failure): the
- * expected fleet must fit the per-instance probe capacity, i.e.
- * {@code expectedMaxServices × expectedProbeLatency ≤ maxInFlight × checkInterval}.
+ * expected fleet must fit the <em>fleet-wide</em> probe capacity, i.e.
+ * {@code expectedMaxServices × expectedProbeLatency ≤ maxInFlight × checkInterval × instanceCount}.
+ * {@code instanceCount} is the number of {@code status-api} instances sharing the
+ * Postgres work-queue, so a multi-instance deployment divides the demand across
+ * them rather than comparing the global fleet against one instance's capacity.
  * {@code expectedProbeLatency} is the <em>expected average</em> probe latency and is
  * deliberately <em>not</em> validated against {@code timeout} (that would reject
  * healthy fleets whose average latency is far below the worst-case timeout).
@@ -33,16 +36,18 @@ public record MonitoringProperties(
         @DefaultValue("50") int batchSize,
         @DefaultValue("5000ms") Duration claimTickMs,
         @DefaultValue("50") int expectedMaxServices,
-        @DefaultValue("1s") Duration expectedProbeLatency
+        @DefaultValue("1s") Duration expectedProbeLatency,
+        @DefaultValue("1") int instanceCount
 ) {
 
     /**
-     * True when the expected fleet exceeds the per-instance probe capacity:
-     * {@code expectedMaxServices × expectedProbeLatency > maxInFlight × checkInterval}.
+     * True when the expected fleet exceeds the fleet-wide probe capacity:
+     * {@code expectedMaxServices × expectedProbeLatency > maxInFlight × checkInterval × instanceCount}.
+     * Long arithmetic throughout so no intermediate value truncates.
      */
     public boolean oversubscribed() {
         long demand = (long) expectedMaxServices * expectedProbeLatency.toMillis();
-        long capacity = (long) maxInFlight * checkInterval.toMillis();
+        long capacity = (long) maxInFlight * checkInterval.toMillis() * instanceCount;
         return demand > capacity;
     }
 }

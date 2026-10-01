@@ -21,6 +21,7 @@ services:
       APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
       MONITORING_CLAIM_TICK_MS: "2000"
       MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_INSTANCE_COUNT: "3"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,6 +38,7 @@ services:
       APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
       MONITORING_CLAIM_TICK_MS: "2000"
       MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_INSTANCE_COUNT: "3"
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +55,7 @@ services:
       APP_SEED_API_KEYS: "mock-auth-key:dev:mock-auth,mock-payments-key:dev:mock-payments,mock-notifications-key:dev:mock-notifications,mock-search-key:dev:mock-search,mock-ai-key:dev:mock-ai"
       MONITORING_CLAIM_TICK_MS: "2000"
       MONITORING_CHECK_INTERVAL: 5s
+      MONITORING_INSTANCE_COUNT: "3"
     depends_on:
       postgres:
         condition: service_healthy

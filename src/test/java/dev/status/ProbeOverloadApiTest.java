@@ -55,33 +55,45 @@ class ProbeOverloadApiTest extends MonitoringApiTest {
     @Test
     void given_moreDueServicesThanCapacity_when_claiming_then_unclaimedKeepOverdueAndAreClaimedLater() throws Exception {
         List<String> ids = new ArrayList<>();
-        try (FakeService fake = new FakeService("slow")) {
-            fake.setSlowDelayMs(600);
-            int n = 8;
+        List<FakeService> fakes = new ArrayList<>();
+        int n = 8;
+        try {
+            // Each service gets its OWN fake (distinct healthUrl), so per-service
+            // probeCount can distinguish "8×1" (every service probed once) from
+            // "2×4 + 6×0" (two services hog all capacity, six silently dropped).
             for (int i = 0; i < n; i++) {
+                FakeService fake = new FakeService("slow");
+                fake.setSlowDelayMs(600);
+                fakes.add(fake);
                 ids.add(register(fake.healthUrl()));
             }
 
             // After the first claim round, unclaimed services keep their overdue
             // next_check_at (bounded work per tick — never all submitted at once).
             Thread.sleep(600);
+            List<String> urls = fakes.stream().map(FakeService::healthUrl).toList();
+            String placeholders = String.join(", ", urls.stream().map(u -> "?").toList());
             long overdue = jdbc.queryForObject(
-                    "SELECT count(*) FROM services WHERE next_check_at <= now() AND health_url = ?",
-                    Long.class, fake.healthUrl());
+                    "SELECT count(*) FROM services WHERE next_check_at <= now() AND health_url IN (" + placeholders + ")",
+                    Long.class, urls.toArray());
             assertThat(overdue)
                     .as("unclaimed services must stay overdue: only min(batchSize, freePermits) are claimed per tick")
                     .isGreaterThan(0);
 
-            // They are claimed on later ticks, not lost.
+            // They are claimed on later ticks, not lost — EVERY distinct service
+            // must be probed at least once (no silently-dropped service).
             long deadline = System.currentTimeMillis() + 15000;
-            while (fake.probeCount() < n && System.currentTimeMillis() < deadline) {
+            while (fakes.stream().anyMatch(f -> f.probeCount() < 1) && System.currentTimeMillis() < deadline) {
                 Thread.sleep(100);
             }
-            assertThat(fake.probeCount())
-                    .as("unclaimed services are claimed on later ticks")
-                    .isGreaterThanOrEqualTo(n);
+            for (int i = 0; i < n; i++) {
+                assertThat(fakes.get(i).probeCount())
+                        .as("service %d must be probed at least once (no silently-dropped service)", i)
+                        .isGreaterThanOrEqualTo(1);
+            }
         } finally {
             deleteAll(ids);
+            fakes.forEach(FakeService::close);
         }
     }
 
